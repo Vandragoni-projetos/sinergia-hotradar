@@ -15,15 +15,20 @@ return function (Connection $db, string $driver): void {
 
     if ($driver === 'sqlite') {
         $pk = 'INTEGER PRIMARY KEY AUTOINCREMENT';
+        $fk = 'INTEGER';                 // referência lógica (sem constraint FK nesta V1)
         $json = 'TEXT';
         $dt = 'TEXT';
         $money = 'NUMERIC';
+        $bin = '';                       // SQLite TEXT já é comparado byte-a-byte (BINARY)
         $engine = '';
     } else {
         $pk = 'BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY';
+        $fk = 'BIGINT UNSIGNED';         // mesmo tipo do PK -> migration de FK futura fica trivial
         $json = 'JSON';
         $dt = 'DATETIME';
         $money = 'DECIMAL(12,2)';
+        // dedup byte-a-byte na MariaDB (a collation utf8mb4 default é case/accent-insensitive)
+        $bin = ' COLLATE utf8mb4_bin';
         $engine = ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4';
     }
 
@@ -31,8 +36,8 @@ return function (Connection $db, string $driver): void {
     $pdo->exec("
         CREATE TABLE hr_products (
             id $pk,
-            marketplace              VARCHAR(30)  NOT NULL,
-            marketplace_product_id   VARCHAR(40)  NOT NULL,
+            marketplace              VARCHAR(30)$bin  NOT NULL,
+            marketplace_product_id   VARCHAR(40)$bin  NOT NULL,
             shop_id                  VARCHAR(40)  NULL,
             title                    VARCHAR(300) NOT NULL,
             category                 VARCHAR(80)  NULL,
@@ -108,8 +113,8 @@ return function (Connection $db, string $driver): void {
     $pdo->exec("
         CREATE TABLE hr_product_snapshots (
             id $pk,
-            product_id     INTEGER      NOT NULL,
-            run_id         INTEGER      NULL,
+            product_id     $fk          NOT NULL,
+            run_id         $fk          NULL,
             collected_at   $dt          NOT NULL,
 
             price_current  $money       NULL,
@@ -134,7 +139,7 @@ return function (Connection $db, string $driver): void {
     $pdo->exec("
         CREATE TABLE hr_editorial_events (
             id $pk,
-            product_id   INTEGER      NOT NULL,
+            product_id   $fk          NOT NULL,
             from_status  VARCHAR(20)  NULL,
             to_status    VARCHAR(20)  NOT NULL,
             reason       VARCHAR(255) NULL,

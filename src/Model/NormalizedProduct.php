@@ -45,12 +45,17 @@ final class NormalizedProduct
         public string $source = '',
         public ?string $nicheConfidence = null, // alta|media|baixa|fora|null
     ) {
+        // Normalização da chave de dedup: sempre MAIÚSCULA e sem espaços.
+        // Remove divergência entre SQLite (índice case-sensitive/BINARY) e
+        // MariaDB (collation utf8mb4 case-insensitive) no UNIQUE (marketplace, marketplace_product_id).
+        $this->marketplace = strtolower(trim($this->marketplace));
+        $this->marketplaceProductId = strtoupper(trim($this->marketplaceProductId));
     }
 
     /** Chave estável de deduplicação. */
     public function dedupeKey(): string
     {
-        return $this->marketplace . ':' . strtoupper($this->marketplaceProductId);
+        return $this->marketplace . ':' . $this->marketplaceProductId;
     }
 
     /** @return array<string,mixed> */
