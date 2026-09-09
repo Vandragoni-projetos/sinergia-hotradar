@@ -1,0 +1,30 @@
+# Uso local opcional (paridade com produção). O desenvolvimento desta etapa
+# roda com PHP portátil + SQLite; este compose é referência para a VPS.
+services:
+  hotradar-app:
+    build: .
+    ports:
+      - "8090:80"
+    environment:
+      HR_ENV: production
+      HR_DB_DRIVER: mysql
+      HR_DB_HOST: hotradar-db
+      HR_DB_NAME: hotradar
+      HR_DB_USER: hotradar
+      HR_DB_PASSWORD: ${HR_DB_PASSWORD:-hotradar}
+      HR_PANEL_PASSWORD: ${HR_PANEL_PASSWORD:-hotradar}
+    depends_on:
+      - hotradar-db
+
+  hotradar-db:
+    image: mariadb:11
+    environment:
+      MARIADB_DATABASE: hotradar
+      MARIADB_USER: hotradar
+      MARIADB_PASSWORD: ${HR_DB_PASSWORD:-hotradar}
+      MARIADB_ROOT_PASSWORD: ${HR_DB_ROOT_PASSWORD:-root}
+    volumes:
+      - hotradar_db:/var/lib/mysql
+
+volumes:
+  hotradar_db:

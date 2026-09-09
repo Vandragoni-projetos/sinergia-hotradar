@@ -1,0 +1,13 @@
+# Front controller (produção Apache). O painel roteia por ?r=.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+    RewriteRule ^ index.php [L]
+</IfModule>
+
+# Nunca servir dados/config
+<FilesMatch "\.(sqlite|env|log|ndjson)$">
+    Require all denied
+</FilesMatch>
