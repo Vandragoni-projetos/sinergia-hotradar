@@ -1,0 +1,27 @@
+# Runtime / local dev
+/.tools/
+/storage/*.sqlite
+/storage/*.sqlite-shm
+/storage/*.sqlite-wal
+/storage/logs/*.log
+/storage/logs/*.ndjson
+/storage/cache/
+/storage/collect/*.html
+/storage/collect/*.json
+!/storage/.gitkeep
+!/storage/logs/.gitkeep
+!/storage/collect/.gitkeep
+
+# Env
+/.env
+/.env.local
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Dependencies (none yet — kept for future composer use)
+/vendor/
