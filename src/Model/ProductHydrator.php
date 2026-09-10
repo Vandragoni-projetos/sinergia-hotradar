@@ -1,9 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace HotRadar\Web;
-
-use HotRadar\Model\NormalizedProduct;
+namespace HotRadar\Model;
 
 /**
  * Reconstrói um NormalizedProduct a partir de uma linha de hr_products

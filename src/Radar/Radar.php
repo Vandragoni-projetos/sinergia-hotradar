@@ -129,7 +129,16 @@ final class Radar
 
     public static function slugify(string $name): string
     {
-        $s = iconv('UTF-8', 'ASCII//TRANSLIT', mb_strtolower(trim($name), 'UTF-8')) ?: strtolower($name);
+        $s = mb_strtolower(trim($name), 'UTF-8');
+        $map = [
+            'á' => 'a', 'à' => 'a', 'â' => 'a', 'ã' => 'a', 'ä' => 'a',
+            'é' => 'e', 'è' => 'e', 'ê' => 'e', 'ë' => 'e',
+            'í' => 'i', 'ì' => 'i', 'î' => 'i', 'ï' => 'i',
+            'ó' => 'o', 'ò' => 'o', 'ô' => 'o', 'õ' => 'o', 'ö' => 'o',
+            'ú' => 'u', 'ù' => 'u', 'û' => 'u', 'ü' => 'u',
+            'ç' => 'c', 'ñ' => 'n',
+        ];
+        $s = strtr($s, $map);
         $s = preg_replace('/[^a-z0-9]+/', '-', $s) ?? '';
         return trim($s, '-') ?: 'radar';
     }

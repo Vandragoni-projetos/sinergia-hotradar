@@ -21,8 +21,11 @@ $discovery = new DiscoveryService(
     new SnapshotRepository($db),
     new RunRepository($db),
     new HotScore(HotScoreConfig::load(require HR_ROOT . '/config/hotscore.php')),
+    new HotRadar\Repository\ProductRadarRepository($db),
 );
 $reports = new ReportService($db);
+$radar = (new HotRadar\Radar\RadarRepository($db, new HotRadar\Repository\AuditRepository($db)))
+    ->findBySlug('casa-organizacao'); // semeado pela migration 003
 
 $fake = new class implements CollectorInterface {
     /** @var array<int,NormalizedProduct> */
@@ -35,10 +38,15 @@ $fake = new class implements CollectorInterface {
     {
         $r = new CollectorReport();
         $r->pagesFetched = 1;
-        foreach ($this->out as $p) { $r->add($p); $r->cardsSeen++; }
+        foreach ($this->out as $p) {
+            if ($ctx->radar) { $p->radarSlug = $ctx->radar->slug; $p->radarId = $ctx->radar->id; }
+            $r->add($p);
+            $r->cardsSeen++;
+        }
         return $r;
     }
 };
+$ctxR = new CollectorContext(radar: $radar);
 
 $mk = static fn (string $id, float $price, int $disc, string $sales, ?bool $video = false): NormalizedProduct => new NormalizedProduct(
     marketplace: 'mercado_livre', marketplaceProductId: $id, title: "Produto $id",
@@ -53,7 +61,7 @@ $fake->out = [
     $mk('MLBB', 200.0, 30, 'muito_alto'),
     $mk('MLBC', 50.0, 10, 'baixo'),
 ];
-$discovery->run($fake, new CollectorContext());
+$discovery->run($fake, $ctxR);
 
 $last = $reports->lastRun();
 T::ok($last['exists'] === true, 'lastRun existe');
@@ -73,7 +81,7 @@ $fake->out = [
     $mk('MLBB', 150.0, 55, 'muito_alto'),
     $mk('MLBC', 50.0, 10, 'baixo'),
 ];
-$discovery->run($fake, new CollectorContext());
+$discovery->run($fake, $ctxR);
 
 T::eq(3, (int) $db->first('SELECT COUNT(*) n FROM hr_products')['n'], 'dedup: continua 3 produtos');
 T::eq(6, (int) $db->first('SELECT COUNT(*) n FROM hr_product_snapshots')['n'], '6 snapshots (2 por produto)');
@@ -98,9 +106,11 @@ $byCat = $reports->byCategory([]);
 T::ok($byCat[0]['n'] === 3, 'distribuição por nicho soma 3');
 
 $byRadar = $reports->byRadar();
-T::eq('casa-organizacao', $byRadar[0]['key'], 'distribuição por radar');
+T::eq('casa-organizacao', $byRadar[0]['key'], 'distribuição por radar (via M2M)');
+T::eq(3, (int) $byRadar[0]['n'], 'radar tem os 3 produtos associados');
 
-// filtro por radar inexistente → vazio
+// filtro por radar (M2M) traz os produtos do radar
+T::eq(3, count($reports->topHotScores(['radar' => 'casa-organizacao'], 10)), 'filtro por radar existente = 3 produtos');
 T::eq(0, count($reports->topHotScores(['radar' => 'nao-existe'], 10)), 'filtro por radar inexistente = vazio');
 
 TestDb::cleanup('report');

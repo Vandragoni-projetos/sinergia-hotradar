@@ -56,6 +56,8 @@ final class Screens
             $app->db->all('SELECT DISTINCT category FROM hr_products WHERE category IS NOT NULL ORDER BY category'),
             'category'
         );
+        // radares (M2M) por produto, em lote
+        $radarSlugsByProduct = $app->productRadars()->slugsByProductIds(array_column($rows, 'id'));
 
         View::page('products/index', [
             'active' => 'products',
@@ -63,6 +65,7 @@ final class Screens
             'filters' => $filters,
             'categories' => $categories,
             'radars' => $app->radars()->all(),
+            'radar_slugs_by_product' => $radarSlugsByProduct,
             'total' => count($rows),
         ], 'Curadoria');
     }
@@ -84,7 +87,8 @@ final class Screens
             'timeline' => $app->editorial()->timeline($id),
             'extra' => json_decode((string) ($row['marketplace_extra'] ?? '{}'), true) ?: [],
             'signals' => json_decode((string) ($row['special_signals'] ?? '[]'), true) ?: [],
-            'radar' => $row['radar_slug'] ? $app->radars()->findBySlug((string) $row['radar_slug']) : null,
+            'primary_radar' => $row['radar_slug'] ? $app->radars()->findBySlug((string) $row['radar_slug']) : null,
+            'product_radars' => $app->productRadars()->radarsForProduct($id),
         ], 'Ficha — ' . mb_substr((string) $row['title'], 0, 40));
     }
 
@@ -215,13 +219,9 @@ final class Screens
         return $out;
     }
 
-    /** @return array<string,int> radar_slug => nº de produtos */
+    /** @return array<string,int> radar_slug => nº de produtos ASSOCIADOS (M2M) */
     public static function radarProductCounts(App $app): array
     {
-        $out = [];
-        foreach ($app->db->all('SELECT radar_slug, COUNT(*) n FROM hr_products GROUP BY radar_slug') as $r) {
-            $out[(string) ($r['radar_slug'] ?? '')] = (int) $r['n'];
-        }
-        return $out;
+        return $app->productRadars()->countsBySlug();
     }
 }

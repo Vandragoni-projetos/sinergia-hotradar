@@ -122,7 +122,10 @@ final class ProductRepository
             $params[] = $filters['marketplace'];
         }
         if (!empty($filters['radar'])) {
-            $cond[] = 'radar_slug = ?';
+            // relação MUITOS-PARA-MUITOS: o produto aparece se associado ao radar por hr_product_radars
+            $cond[] = 'EXISTS (SELECT 1 FROM hr_product_radars pr
+                               JOIN hr_radars r ON r.id = pr.radar_id
+                               WHERE pr.product_id = hr_products.id AND r.slug = ?)';
             $params[] = $filters['radar'];
         }
         if (!empty($filters['faixa'])) {

@@ -248,7 +248,7 @@ final class Actions
     {
         $hotScore = $app->hotScore(); // já carrega a config recém-salva
         foreach ($app->db->all('SELECT * FROM hr_products') as $row) {
-            $np = \HotRadar\Web\ProductHydrator::fromRow($row);
+            $np = \HotRadar\Model\ProductHydrator::fromRow($row);
             $b = $hotScore->evaluate($np);
             $app->db->run(
                 'UPDATE hr_products SET hot_score=?, hot_faixa=?, hot_score_breakdown=?, hot_score_version=?, updated_at=? WHERE id=?',

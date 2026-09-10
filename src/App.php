@@ -18,6 +18,7 @@ use HotRadar\Report\AiReportService;
 use HotRadar\Report\ReportService;
 use HotRadar\Repository\AuditRepository;
 use HotRadar\Repository\EditorialRepository;
+use HotRadar\Repository\ProductRadarRepository;
 use HotRadar\Repository\ProductRepository;
 use HotRadar\Repository\RunRepository;
 use HotRadar\Repository\SettingsRepository;
@@ -59,6 +60,11 @@ final class App
         return new SnapshotRepository($this->db);
     }
 
+    public function productRadars(): ProductRadarRepository
+    {
+        return new ProductRadarRepository($this->db);
+    }
+
     public function runs(): RunRepository
     {
         return new RunRepository($this->db);
@@ -96,7 +102,13 @@ final class App
 
     public function discovery(): DiscoveryService
     {
-        return new DiscoveryService($this->products(), $this->snapshots(), $this->runs(), $this->hotScore());
+        return new DiscoveryService(
+            $this->products(),
+            $this->snapshots(),
+            $this->runs(),
+            $this->hotScore(),
+            $this->productRadars(),
+        );
     }
 
     public function shopeeStatus(): ShopeeStatus

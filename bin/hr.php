@@ -20,7 +20,7 @@ require __DIR__ . '/../config/bootstrap.php';
 
 use HotRadar\App;
 use HotRadar\Collector\CollectorContext;
-use HotRadar\Web\ProductHydrator;
+use HotRadar\Model\ProductHydrator;
 
 $argvv = $argv;
 array_shift($argvv);
@@ -160,6 +160,12 @@ function printCollectResult(array $r): void
     line('  produtos coletados  ' . $r['collected']);
     line('  novos ............. ' . $r['new']);
     line('  atualizados ....... ' . $r['updated']);
+    if (($r['assoc_new'] ?? 0) > 0) {
+        line('  novas assoc. radar  ' . $r['assoc_new']);
+    }
+    if (($r['gaps_filled'] ?? 0) > 0) {
+        line('  dados ricos manti. ' . $r['gaps_filled'] . ' (merge de fallback)');
+    }
     line('  snapshots ......... ' . $r['snapshots']);
     line('  distribuição HOT SCORE:');
     foreach ($r['score_distribution'] as $k => $v) {

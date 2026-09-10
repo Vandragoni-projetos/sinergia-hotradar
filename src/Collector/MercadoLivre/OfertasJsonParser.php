@@ -472,8 +472,13 @@ final class OfertasJsonParser
         if ($label === null || $label === '') {
             return null;
         }
-        $s = iconv('UTF-8', 'ASCII//TRANSLIT', mb_strtolower($label, 'UTF-8'));
-        $s = preg_replace('/[^a-z0-9]+/', '_', (string) $s) ?? '';
+        $s = strtr(mb_strtolower($label, 'UTF-8'), [
+            'á' => 'a', 'à' => 'a', 'â' => 'a', 'ã' => 'a', 'ä' => 'a',
+            'é' => 'e', 'è' => 'e', 'ê' => 'e', 'í' => 'i', 'î' => 'i',
+            'ó' => 'o', 'ò' => 'o', 'ô' => 'o', 'õ' => 'o', 'ö' => 'o',
+            'ú' => 'u', 'û' => 'u', 'ü' => 'u', 'ç' => 'c', 'ñ' => 'n',
+        ]);
+        $s = preg_replace('/[^a-z0-9]+/', '_', $s) ?? '';
         return trim($s, '_') ?: null;
     }
 

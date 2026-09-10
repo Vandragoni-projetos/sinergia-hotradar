@@ -6,6 +6,7 @@ use HotRadar\Editorial\EditorialStatus;
  * @var array<string,mixed> $filters
  * @var array<int,string> $categories
  * @var array<int,\HotRadar\Radar\Radar> $radars
+ * @var array<int,array<int,string>> $radar_slugs_by_product  product_id => [slug,...]
  * @var int $total
  */
 $qs = static function (array $over) use ($filters): string {
@@ -90,7 +91,9 @@ $cur = static fn (string $k, string $v): string => ($filters[$k] ?? '') === $v ?
     <div class="body">
       <div class="meta">
         <span class="badge mp"><?= View::e(View::marketplaceLabel((string) $p['marketplace'])) ?></span>
-        <?php if (!empty($p['radar_slug'])): ?><span class="badge q" title="radar de origem">📡 <?= View::e($p['radar_slug']) ?></span><?php endif; ?>
+        <?php foreach (($radar_slugs_by_product[$p['id']] ?? []) as $rs): ?>
+          <span class="badge q" title="radar associado">📡 <?= View::e($rs) ?></span>
+        <?php endforeach; ?>
         <?php if ($p['category']): ?><span class="badge q"><?= View::e($p['category']) ?></span><?php endif; ?>
         <span class="badge q" title="qualidade do dado"><?= View::e($p['data_quality']) ?></span>
       </div>

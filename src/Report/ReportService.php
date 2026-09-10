@@ -18,14 +18,21 @@ final class ReportService
     {
     }
 
-    /** @param array<string,mixed> $f filtros: radar, marketplace */
+    /**
+     * @param array<string,mixed> $f filtros: radar, marketplace
+     * @param string $alias alias da tabela hr_products na query (para a chave primária no EXISTS)
+     */
     private function scope(array $f, string $alias = ''): array
     {
         $p = $alias !== '' ? $alias . '.' : '';
+        $idCol = ($alias !== '' ? $alias . '.' : 'hr_products.') . 'id';
         $cond = [];
         $params = [];
         if (!empty($f['radar'])) {
-            $cond[] = "{$p}radar_slug = ?";
+            // M2M: produto associado ao radar em hr_product_radars
+            $cond[] = "EXISTS (SELECT 1 FROM hr_product_radars pr
+                               JOIN hr_radars r ON r.id = pr.radar_id
+                               WHERE pr.product_id = {$idCol} AND r.slug = ?)";
             $params[] = $f['radar'];
         }
         if (!empty($f['marketplace'])) {
@@ -242,7 +249,9 @@ final class ReportService
         $cond = [];
         $params = [];
         if (!empty($f['radar'])) {
-            $cond[] = 'radar_slug = ?';
+            $cond[] = 'EXISTS (SELECT 1 FROM hr_product_radars pr
+                               JOIN hr_radars r ON r.id = pr.radar_id
+                               WHERE pr.product_id = hr_products.id AND r.slug = ?)';
             $params[] = $f['radar'];
         }
         if (!empty($f['marketplace'])) {
@@ -279,13 +288,29 @@ final class ReportService
         return array_map(static fn ($r) => ['key' => (string) $r['k'], 'n' => (int) $r['n']], $rows);
     }
 
-    /** @return array<int,array{key:string,n:int}> */
+    /**
+     * Distribuição por radar via M2M (um produto pode contar em vários radares)
+     * + linha "(sem radar)" para produtos sem nenhuma associação.
+     * @return array<int,array{key:string,n:int}>
+     */
     public function byRadar(): array
     {
-        $rows = $this->db->all(
-            "SELECT COALESCE(radar_slug, '(sem radar)') k, COUNT(*) n FROM hr_products GROUP BY radar_slug ORDER BY n DESC"
-        );
-        return array_map(static fn ($r) => ['key' => (string) $r['k'], 'n' => (int) $r['n']], $rows);
+        $out = [];
+        foreach ($this->db->all(
+            "SELECT r.slug k, COUNT(DISTINCT pr.product_id) n
+             FROM hr_product_radars pr JOIN hr_radars r ON r.id = pr.radar_id
+             GROUP BY r.slug ORDER BY n DESC"
+        ) as $r) {
+            $out[] = ['key' => (string) $r['k'], 'n' => (int) $r['n']];
+        }
+        $orphans = (int) ($this->db->first(
+            'SELECT COUNT(*) n FROM hr_products p
+             WHERE NOT EXISTS (SELECT 1 FROM hr_product_radars pr WHERE pr.product_id = p.id)'
+        )['n'] ?? 0);
+        if ($orphans > 0) {
+            $out[] = ['key' => '(sem radar)', 'n' => $orphans];
+        }
+        return $out;
     }
 
     /** @return array<string,int> */
