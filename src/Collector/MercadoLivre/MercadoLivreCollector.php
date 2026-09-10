@@ -53,17 +53,25 @@ final class MercadoLivreCollector implements CollectorInterface
     {
         $report = new CollectorReport();
 
-        $categories = $ctx->categories !== [] ? $ctx->categories : $this->defaultCategories;
+        $categories = $ctx->effectiveCategories();
         if ($categories === []) {
-            $categories = MlCategories::presetCasaCozinhaOrganizacao();
+            $categories = $this->defaultCategories;
         }
+        if ($categories === []) {
+            $report->addError('ML: nenhuma categoria configurada. Configure um Radar com ao menos uma categoria do Mercado Livre.');
+            return $report;
+        }
+
+        $radar = $ctx->radar;
+        $maxPages = $ctx->effectiveMaxPages();
+        $filtered = 0;
 
         $seen = [];
         foreach ($categories as $catId) {
             $catId = strtoupper(trim($catId));
             $catLabel = MlCategories::label($catId);
 
-            for ($page = 1; $page <= max(1, $ctx->maxPages); $page++) {
+            for ($page = 1; $page <= max(1, $maxPages); $page++) {
                 $url = self::BASE . '?category=' . rawurlencode($catId);
                 if ($page > 1) {
                     $url .= '&page=' . $page;
@@ -112,6 +120,9 @@ final class MercadoLivreCollector implements CollectorInterface
                     $report->addError("ML {$catId} p{$page}: " . ($parsed['reason'] ?? 'parsing falhou'));
                     break;
                 }
+                if (($parsed['reason'] ?? null) !== null && str_contains((string) $parsed['reason'], 'html_fallback')) {
+                    $report->addError("AVISO ML {$catId} p{$page}: " . $parsed['reason']);
+                }
 
                 $newInPage = 0;
                 foreach ($parsed['items'] as $np) {
@@ -120,8 +131,22 @@ final class MercadoLivreCollector implements CollectorInterface
                         continue;
                     }
                     $seen[$key] = true;
-                    $report->add($np);
                     $newInPage++;
+
+                    // Filtros do radar (palavras excluídas, desconto/preço mín-máx, exigir vídeo)
+                    if ($radar !== null) {
+                        $verdict = $radar->accepts($np);
+                        if (!$verdict['ok']) {
+                            $filtered++;
+                            continue;
+                        }
+                        $np->radarSlug = $radar->slug;
+                        $np->radarId = $radar->id;
+                        // reforça keywords do radar na aderência ao nicho
+                        $np = $this->applyRadarNicheBoost($np, $radar->extraKeywords);
+                    }
+
+                    $report->add($np);
                 }
 
                 // Página sem cards novos = provavelmente fim do pool desta categoria.
@@ -129,16 +154,50 @@ final class MercadoLivreCollector implements CollectorInterface
                     break;
                 }
 
-                if ($this->requestDelayMs > 0 && $page < $ctx->maxPages) {
-                    usleep($this->requestDelayMs * 1000);
+                if ($this->requestDelayMs > 0 && $page < $maxPages) {
+                    $this->politeSleep();
                 }
             }
 
             if ($this->requestDelayMs > 0) {
-                usleep($this->requestDelayMs * 1000);
+                $this->politeSleep();
             }
         }
 
+        $report->filteredByRadar = $filtered;
         return $report;
+    }
+
+    /** Pausa com jitter (±40%) — reduz o padrão "robô" que o ML penaliza. */
+    private function politeSleep(): void
+    {
+        $base = $this->requestDelayMs;
+        $jittered = (int) ($base * (0.8 + (random_int(0, 800) / 1000)));
+        usleep($jittered * 1000);
+    }
+
+    /**
+     * Se o título casa com as keywords adicionais do radar, sobe a confiança de nicho
+     * (impacta só o bloco "aderência" do HOT SCORE — que segue determinístico).
+     */
+    private function applyRadarNicheBoost(\HotRadar\Model\NormalizedProduct $p, array $keywords): \HotRadar\Model\NormalizedProduct
+    {
+        if ($keywords === []) {
+            return $p;
+        }
+        $t = mb_strtolower($p->title, 'UTF-8');
+        $hits = 0;
+        foreach ($keywords as $kw) {
+            $kw = mb_strtolower(trim($kw), 'UTF-8');
+            if ($kw !== '' && mb_strpos($t, $kw) !== false) {
+                $hits++;
+            }
+        }
+        if ($hits >= 2 && $p->nicheConfidence !== 'alta') {
+            $p->nicheConfidence = 'alta';
+        } elseif ($hits === 1 && in_array($p->nicheConfidence, [null, 'fora', 'baixa'], true)) {
+            $p->nicheConfidence = 'media';
+        }
+        return $p;
     }
 }

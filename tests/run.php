@@ -42,7 +42,13 @@ final class T
     }
 }
 
-foreach (['ParserTest', 'HotScoreTest', 'DedupeTest'] as $suite) {
+require __DIR__ . '/TestDb.php';
+
+foreach ([
+    'ParserTest', 'HotScoreTest', 'DedupeTest',
+    'SettingsTest', 'RadarTest', 'IntegrationStatusTest', 'ReportTest',
+    'SecurityTest', 'EditorialPreservationTest',
+] as $suite) {
     require __DIR__ . '/' . $suite . '.php';
 }
 

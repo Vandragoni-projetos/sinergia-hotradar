@@ -6,20 +6,19 @@ namespace HotRadar\Collector\Shopee;
 use HotRadar\Collector\CollectorContext;
 use HotRadar\Collector\CollectorInterface;
 use HotRadar\Collector\CollectorReport;
+use HotRadar\Integration\ShopeeStatus;
 
 /**
  * Collector Shopee — PREPARADO, PORÉM INATIVO.
  *
- * A conta não tem acesso à Shopee Affiliate Open API (erro 10035). Enquanto
- * HR_SHOPEE_APP_ID / HR_SHOPEE_SECRET não forem preenchidos com credenciais
- * aprovadas, isAvailable() == false e o painel mostra:
- *      "Shopee — aguardando credenciais da Open API"
+ * A conta não tem acesso à Shopee Affiliate Open API (erro 10035). O estado é
+ * decidido por HotRadar\Integration\ShopeeStatus a partir de:
+ *   - SHOPEE_APP_ID / SHOPEE_SECRET (Environment; nunca no banco/Git);
+ *   - flag NÃO SECRETA hr_settings['shopee']['open_api_access'] = pending|granted.
  *
- * A infraestrutura (assinatura SHA256, query productOfferV2, mapeamento de campos)
- * está desenhada para ligar sem reconstruir o HOTRADAR:
- *   1. preencher App ID + Secret aprovados no .env;
- *   2. HR_SHOPEE_ENABLED=1;
- *   3. o método collect() abaixo passa a consultar a API e usa ProductOfferV2Mapper.
+ * Sem credenciais → isAvailable() == false e NENHUMA chamada é feita.
+ * A infraestrutura (assinatura SHA256, query productOfferV2, mapeamento) está
+ * pronta para ligar sem reconstruir o HOTRADAR quando o acesso for concedido.
  */
 final class ShopeeCollector implements CollectorInterface
 {
@@ -27,7 +26,7 @@ final class ShopeeCollector implements CollectorInterface
         private readonly string $appId,
         private readonly string $secret,
         private readonly string $graphqlUrl,
-        private readonly bool $enabled,
+        private readonly ShopeeStatus $status,
         private readonly ProductOfferV2Mapper $mapper = new ProductOfferV2Mapper(),
     ) {
     }
@@ -44,7 +43,7 @@ final class ShopeeCollector implements CollectorInterface
 
     public function isAvailable(): bool
     {
-        return $this->enabled && $this->appId !== '' && $this->secret !== '';
+        return $this->status->collectorEnabled() && $this->appId !== '' && $this->secret !== '';
     }
 
     public function unavailableReason(): ?string
@@ -52,8 +51,13 @@ final class ShopeeCollector implements CollectorInterface
         if ($this->isAvailable()) {
             return null;
         }
-        return 'Shopee — aguardando credenciais da Open API (App ID/Secret aprovados). '
-            . 'Adapter pronto; ativar via .env quando a conta for habilitada.';
+        return match ($this->status->state()) {
+            ShopeeStatus::WAITING_OPEN_API =>
+                'Shopee — credenciais presentes, aguardando acesso à Open API ser concedido pela Shopee. '
+                . 'Marque "acesso concedido" em Configurações → Shopee quando a conta for habilitada.',
+            default =>
+                'Shopee — não configurado. Defina SHOPEE_APP_ID e SHOPEE_SECRET no Environment do EasyPanel.',
+        };
     }
 
     public function collect(CollectorContext $ctx): CollectorReport

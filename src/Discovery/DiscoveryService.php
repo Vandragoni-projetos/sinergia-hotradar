@@ -35,14 +35,17 @@ final class DiscoveryService
     public function run(CollectorInterface $collector, CollectorContext $ctx): array
     {
         $mode = $ctx->dryRun ? 'dry_run' : 'live';
+        $radar = $ctx->radar;
         $base = [
             'run_id' => null,
             'marketplace' => $collector->marketplace(),
             'source' => $collector->source(),
             'mode' => $mode,
+            'radar' => $radar?->slug,
+            'radar_name' => $radar?->name,
             'available' => $collector->isAvailable(),
             'unavailable_reason' => $collector->unavailableReason(),
-            'pages' => 0, 'cards' => 0, 'collected' => 0, 'new' => 0, 'updated' => 0, 'snapshots' => 0,
+            'pages' => 0, 'cards' => 0, 'filtered' => 0, 'collected' => 0, 'new' => 0, 'updated' => 0, 'snapshots' => 0,
             'errors' => [],
             'score_distribution' => ['muito_quente' => 0, 'bom' => 0, 'analisar' => 0, 'baixo' => 0],
             'preview' => [],
@@ -53,12 +56,19 @@ final class DiscoveryService
             return $base;
         }
 
-        $runId = $this->runs->start($collector->marketplace(), $collector->source(), $mode);
+        $runId = $this->runs->start(
+            $collector->marketplace(),
+            $collector->source(),
+            $mode,
+            $radar?->id,
+            $radar?->slug
+        );
         $base['run_id'] = $runId;
 
         $report = $collector->collect($ctx);
         $base['pages'] = $report->pagesFetched;
         $base['cards'] = $report->cardsSeen;
+        $base['filtered'] = $report->filteredByRadar;
         $base['errors'] = $report->errors;
         $base['collected'] = count($report->products);
 
@@ -112,7 +122,11 @@ final class DiscoveryService
             $updated,
             $snaps,
             $report->errors,
-            $ctx->dryRun ? 'DRY-RUN: nada persistido' : null
+            trim(
+                ($ctx->dryRun ? 'DRY-RUN: nada persistido. ' : '')
+                . ($radar ? 'Radar: ' . $radar->name . '. ' : '')
+                . ($report->filteredByRadar > 0 ? $report->filteredByRadar . ' descartados por filtro do radar.' : '')
+            ) ?: null
         );
 
         return $base;

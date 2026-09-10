@@ -62,9 +62,15 @@ final class ProductRepository
             return ['id' => (int) $this->db->lastInsertId(), 'is_new' => true];
         }
 
-        // Atualiza só o estado corrente. NÃO mexe em status/discovered_at/discard_reason.
+        // Atualiza só o estado corrente. NÃO mexe em status/discovered_at/discard_reason
+        // nem na atribuição de radar (produto pertence ao radar que o DESCOBRIU primeiro).
         $data = $row + $scoreCols + ['last_collected_at' => $now, 'updated_at' => $now];
-        unset($data['marketplace'], $data['marketplace_product_id']); // imutáveis
+        unset(
+            $data['marketplace'],
+            $data['marketplace_product_id'],
+            $data['radar_id'],
+            $data['radar_slug']
+        );
         $set = implode(', ', array_map(static fn ($c) => "$c = ?", array_keys($data)));
         $params = array_values($data);
         $params[] = (int) $existing['id'];
@@ -114,6 +120,10 @@ final class ProductRepository
         if (!empty($filters['marketplace'])) {
             $cond[] = 'marketplace = ?';
             $params[] = $filters['marketplace'];
+        }
+        if (!empty($filters['radar'])) {
+            $cond[] = 'radar_slug = ?';
+            $params[] = $filters['radar'];
         }
         if (!empty($filters['faixa'])) {
             $cond[] = 'hot_faixa = ?';

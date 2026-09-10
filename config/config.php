@@ -27,7 +27,7 @@ return [
             'enabled' => Env::bool('HR_ML_ENABLED', true),
             'http_timeout' => Env::int('HR_ML_HTTP_TIMEOUT', 30),
             'max_pages' => Env::int('HR_ML_MAX_PAGES', 3),
-            'request_delay_ms' => Env::int('HR_ML_REQUEST_DELAY_MS', 1500),
+            'request_delay_ms' => Env::int('HR_ML_REQUEST_DELAY_MS', 3500),
             'user_agent' => Env::get(
                 'HR_ML_USER_AGENT',
                 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
@@ -38,12 +38,21 @@ return [
             ))),
         ],
         'shopee' => [
-            // DESLIGADO por design — aguardando App ID/Secret aprovados na Open API.
-            'enabled' => Env::bool('HR_SHOPEE_ENABLED', false),
-            'app_id' => Env::get('HR_SHOPEE_APP_ID', ''),
-            'secret' => Env::get('HR_SHOPEE_SECRET', ''),
+            // Credenciais SOMENTE por Environment. Nomes oficiais: SHOPEE_APP_ID / SHOPEE_SECRET
+            // (aceita HR_SHOPEE_* como retrocompatibilidade). O "enabled" real é decidido por
+            // HotRadar\Integration\ShopeeStatus (precisa de credenciais + acesso Open API concedido).
+            'app_id' => Env::get('SHOPEE_APP_ID', Env::get('HR_SHOPEE_APP_ID', '')),
+            'secret' => Env::get('SHOPEE_SECRET', Env::get('HR_SHOPEE_SECRET', '')),
             'graphql_url' => Env::get('HR_SHOPEE_GRAPHQL_URL', 'https://open-api.affiliate.shopee.com.br/graphql'),
         ],
+    ],
+
+    // OpenAI — SOMENTE por Environment. Usada APENAS para resumos de relatório;
+    // nunca toca no HOT SCORE. Nomes: OPENAI_API_KEY / OPENAI_MODEL.
+    // (a chave NÃO é lida aqui — ver HotRadar\Integration\OpenAi\OpenAiConfig)
+    'openai' => [
+        'configured_hint' => Env::get('OPENAI_API_KEY', '') !== '' ? 'sim' : 'nao',
+        'model' => Env::get('OPENAI_MODEL', 'gpt-4o-mini'),
     ],
 
     'panel' => [

@@ -11,12 +11,17 @@ final class RunRepository
     {
     }
 
-    public function start(string $marketplace, string $source, string $mode): int
-    {
+    public function start(
+        string $marketplace,
+        string $source,
+        string $mode,
+        ?int $radarId = null,
+        ?string $radarSlug = null
+    ): int {
         $this->db->run(
-            'INSERT INTO hr_collection_runs (marketplace, source, mode, status, started_at)
-             VALUES (?,?,?,?,?)',
-            [$marketplace, $source, $mode, 'running', $this->db->now()]
+            'INSERT INTO hr_collection_runs (marketplace, source, mode, status, started_at, radar_id, radar_slug)
+             VALUES (?,?,?,?,?,?,?)',
+            [$marketplace, $source, $mode, 'running', $this->db->now(), $radarId, $radarSlug]
         );
         return (int) $this->db->lastInsertId();
     }

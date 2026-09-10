@@ -44,6 +44,8 @@ final class NormalizedProduct
         public string $dataQuality = 'scrape_json',
         public string $source = '',
         public ?string $nicheConfidence = null, // alta|media|baixa|fora|null
+        public ?string $radarSlug = null,
+        public ?int $radarId = null,
     ) {
         // Normalização da chave de dedup: sempre MAIÚSCULA e sem espaços.
         // Remove divergência entre SQLite (índice case-sensitive/BINARY) e
@@ -87,6 +89,8 @@ final class NormalizedProduct
             'marketplace_extra' => json_encode($this->marketplaceExtra, JSON_UNESCAPED_UNICODE),
             'data_quality' => $this->dataQuality,
             'source' => $this->source,
+            'radar_id' => $this->radarId,
+            'radar_slug' => $this->radarSlug,
         ];
     }
 }

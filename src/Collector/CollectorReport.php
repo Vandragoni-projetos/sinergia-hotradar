@@ -16,6 +16,7 @@ final class CollectorReport
     public array $errors = [];
     public int $pagesFetched = 0;
     public int $cardsSeen = 0;
+    public int $filteredByRadar = 0;
     /** @var array<int,array{url:string,status:int,bytes:int,cards:int,error:?string}> */
     public array $requests = [];
 
