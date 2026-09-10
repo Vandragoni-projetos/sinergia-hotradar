@@ -53,6 +53,14 @@ $prodRow = static function (array $p): string {
   </div>
 </form>
 
+<?php $rmq = http_build_query(array_filter(['radar' => $filters['radar'] ?? '', 'marketplace' => $filters['marketplace'] ?? ''])); ?>
+<div class="toolbar">
+  <span class="muted">Relatório <?= !empty($filters['radar']) ? 'do radar ' . View::e($filters['radar']) : 'geral' ?></span>
+  <div class="spacer"></div>
+  <a class="btn" href="?r=report.export<?= $rmq ? '&' . $rmq : '' ?>">⬇ Exportar CSV</a>
+  <a class="btn" href="?r=print.report<?= $rmq ? '&' . $rmq : '' ?>&auto=1" target="_blank">📄 Gerar PDF</a>
+</div>
+
 <div class="pills" style="margin-bottom:18px">
   <?php foreach ($tabs as $k => $lbl): ?>
     <a class="<?= $tab === $k ? 'on' : '' ?>" href="<?= $qs(['tab' => $k]) ?>"><?= $lbl ?></a>
@@ -172,6 +180,7 @@ $prodRow = static function (array $p): string {
       <p class="muted" style="font-size:12px">A IA recebe apenas números já calculados do banco e produz um resumo interpretativo. Não inventa preço, desconto, venda, rating ou score; dado ausente é marcado como indisponível. Não altera o HOT SCORE.</p>
     <?php else: ?>
       <form method="post" action="?r=report.ai">
+        <?= View::csrf() ?>
         <?php if (!empty($filters['radar'])): ?><input type="hidden" name="radar" value="<?= View::e($filters['radar']) ?>"><?php endif; ?>
         <?php if (!empty($filters['marketplace'])): ?><input type="hidden" name="marketplace" value="<?= View::e($filters['marketplace']) ?>"><?php endif; ?>
         <button class="primary" type="submit">Gerar análise inteligente</button>

@@ -30,6 +30,18 @@ final class View
         return htmlspecialchars((string) ($v ?? ''), ENT_QUOTES, 'UTF-8');
     }
 
+    /** Campo hidden com o token CSRF — usar em TODO formulário POST. */
+    public static function csrf(): string
+    {
+        return '<input type="hidden" name="_csrf" value="' . self::e(Auth::csrfToken()) . '">';
+    }
+
+    /** Renderiza uma página "solta" (sem o layout do painel) — usado no login e nas telas de impressão. */
+    public static function bare(string $template, array $data, string $title): void
+    {
+        echo self::render('bare', ['content' => self::render($template, $data), 'title' => $title]);
+    }
+
     public static function money(mixed $v): string
     {
         if ($v === null || $v === '') {
@@ -58,6 +70,97 @@ final class View
             'baixo' => 'Vendas: baixo',
             default => 'Vendas: n/d',
         };
+    }
+
+    // -------- vocabulário comercial (sem jargão técnico) --------
+
+    public static function faixaNome(?string $faixa): string
+    {
+        return match ($faixa) {
+            'muito_quente' => 'Muito quente',
+            'bom' => 'Bom candidato',
+            'analisar' => 'Analisar',
+            'baixo' => 'Baixa prioridade',
+            default => '—',
+        };
+    }
+
+    public static function faixaEmoji(?string $faixa): string
+    {
+        return match ($faixa) {
+            'muito_quente' => '🔥',
+            'bom' => '🟠',
+            'analisar' => '🟡',
+            'baixo' => '⚪',
+            default => '·',
+        };
+    }
+
+    public static function vendasNome(?string $s): string
+    {
+        return match ($s) {
+            'muito_alto' => 'Muito alto',
+            'alto' => 'Alto',
+            'medio' => 'Médio',
+            'baixo' => 'Baixo',
+            default => 'Não informado',
+        };
+    }
+
+    public static function simNao(mixed $v): string
+    {
+        return $v ? 'Sim' : 'Não';
+    }
+
+    /** "confiança do dado" em linguagem de usuário (esconde scrape_json/scrape_html). */
+    public static function confiancaDado(?string $dq): string
+    {
+        return match ($dq) {
+            'api' => 'Completo (API oficial)',
+            'scrape_json' => 'Completo',
+            'feed' => 'Parcial (catálogo)',
+            'manual' => 'Informado manualmente',
+            'scrape_html' => 'Reduzido (site sob limitação no momento da coleta)',
+            default => '—',
+        };
+    }
+
+    public static function radarStatusNome(bool $enabled): string
+    {
+        return $enabled ? 'Ativo' : 'Pausado';
+    }
+
+    /** Limpa jargão do texto de detalhe de um fator do Hot Score, para telas comerciais. */
+    public static function fatorDetalhe(string $detail): string
+    {
+        $map = [
+            'DEAL_OF_THE_DAY' => 'oferta do dia',
+            'LIGHTNING_DEAL' => 'oferta relâmpago',
+            'BUY_BOX_WINNER' => 'mais vendido',
+            'sinal "muito_alto"' => 'procura muito alta',
+            'sinal "alto"' => 'procura alta',
+            'sinal "medio"' => 'procura média',
+            'sinal "baixo"' => 'procura baixa',
+            'has_published_clips' => 'com vídeo',
+            'good_quality_picture' => 'foto de qualidade',
+            'brand_verified' => 'marca verificada',
+            'best_seller_candidate' => 'candidato a mais vendido',
+            'scrape_json' => 'coleta completa',
+            'scrape_html' => 'coleta reduzida',
+            'nicho: confiança alta' => 'combina muito com o nicho',
+            'nicho: confiança media' => 'combina com o nicho',
+            'nicho: confiança baixa' => 'combina pouco com o nicho',
+        ];
+        return strtr($detail, $map);
+    }
+
+    public static function dataCurta(?string $dt): string
+    {
+        if (!$dt) {
+            return '—';
+        }
+        $ts = strtotime($dt);
+        return $ts === false ? self::e($dt) : date('d/m/Y H:i', $ts);
     }
 
     public static function marketplaceLabel(string $m): string

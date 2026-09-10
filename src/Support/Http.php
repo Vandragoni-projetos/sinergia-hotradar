@@ -7,7 +7,7 @@ namespace HotRadar\Support;
  * Cliente HTTP GET mínimo (curl). Somente leitura de páginas públicas.
  * Não segue nenhuma automação de login, não envia cookies de terceiros.
  */
-final class Http
+class Http
 {
     public function __construct(
         private readonly string $userAgent,

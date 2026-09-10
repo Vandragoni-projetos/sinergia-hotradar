@@ -56,8 +56,12 @@ final class Screens
             $app->db->all('SELECT DISTINCT category FROM hr_products WHERE category IS NOT NULL ORDER BY category'),
             'category'
         );
-        // radares (M2M) por produto, em lote
+        // radares (M2M) por produto, em lote — nomes amigáveis
         $radarSlugsByProduct = $app->productRadars()->slugsByProductIds(array_column($rows, 'id'));
+        $radarNames = [];
+        foreach ($app->radars()->all() as $r) {
+            $radarNames[$r->slug] = $r->name;
+        }
 
         View::page('products/index', [
             'active' => 'products',
@@ -66,7 +70,9 @@ final class Screens
             'categories' => $categories,
             'radars' => $app->radars()->all(),
             'radar_slugs_by_product' => $radarSlugsByProduct,
+            'radar_names' => $radarNames,
             'total' => count($rows),
+            'query_string' => http_build_query(array_filter($filters, static fn ($v) => $v !== '' && $v !== 300)),
         ], 'Curadoria');
     }
 
@@ -92,13 +98,50 @@ final class Screens
         ], 'Ficha — ' . mb_substr((string) $row['title'], 0, 40));
     }
 
+    public static function login(App $app): void
+    {
+        if (Auth::check()) {
+            header('Location: ?r=dashboard');
+            return;
+        }
+        View::bare('login', [
+            'error' => $_GET['e'] ?? null,
+        ], 'Entrar');
+    }
+
     public static function radars(App $app): void
     {
+        $radars = $app->radars()->all();
+        $counts = self::radarProductCounts($app);
+        // última coleta por radar
+        $lastByRadar = [];
+        foreach ($app->db->all(
+            "SELECT radar_slug, MAX(started_at) last, MAX(status) st FROM hr_collection_runs
+             WHERE radar_slug IS NOT NULL GROUP BY radar_slug"
+        ) as $r) {
+            $lastByRadar[(string) $r['radar_slug']] = $r['last'];
+        }
         View::page('radars/index', [
             'active' => 'radars',
-            'radars' => $app->radars()->all(),
-            'counts' => self::radarProductCounts($app),
+            'radars' => $radars,
+            'counts' => $counts,
+            'last_by_radar' => $lastByRadar,
         ], 'Radares');
+    }
+
+    public static function radarDelete(App $app): void
+    {
+        $id = (int) ($_GET['id'] ?? 0);
+        $radar = $app->radars()->find($id);
+        if ($radar === null) {
+            header('Location: ?r=radars');
+            return;
+        }
+        View::page('radars/delete', [
+            'active' => 'radars',
+            'radar' => $radar,
+            'impact' => $app->radarLifecycle()->impact($radar),
+        ], 'Excluir radar');
     }
 
     public static function radarEdit(App $app): void
@@ -180,7 +223,99 @@ final class Screens
             'hs_default' => HotScoreConfig::fileDefault(),
             'audit' => $app->audit()->recent(null, 40),
             'radars_count' => $app->radars()->count(),
+            'auth_required' => Auth::required(),
+            'auth_user_set' => trim((string) (hr_config()['panel']['user'] ?? '')) !== '',
+            'auth_hash_set' => trim((string) (hr_config()['panel']['password_hash'] ?? '')) !== '',
         ], 'Configurações');
+    }
+
+    public static function analyze(App $app): void
+    {
+        View::page('analyze/index', [
+            'active' => 'analyze',
+            'result' => null,
+            'url' => '',
+            'radars' => $app->radars()->all(),
+        ], 'Analisar por URL');
+    }
+
+    // ---- telas de impressão (viram PDF pelo "Salvar como PDF" do navegador) ----
+
+    public static function printFicha(App $app): void
+    {
+        $id = (int) ($_GET['id'] ?? 0);
+        $row = $app->products()->find($id);
+        if ($row === null) {
+            http_response_code(404);
+            echo 'Produto não encontrado.';
+            return;
+        }
+        View::bare('print/ficha', [
+            'p' => $row,
+            'breakdown' => ScoreBreakdown::fromJson($row['hot_score_breakdown'] ?? null),
+            'radares' => $app->productRadars()->radarsForProduct($id),
+            'auto' => isset($_GET['auto']),
+        ], 'Ficha — ' . mb_substr((string) $row['title'], 0, 40));
+    }
+
+    public static function printPack(App $app): void
+    {
+        $ids = array_values(array_filter(array_map('intval', explode(',', (string) ($_GET['ids'] ?? '')))));
+        $radarSlug = (string) ($_GET['radar'] ?? '');
+        $onlyApproved = isset($_GET['aprovados']);
+
+        if ($ids === []) {
+            $filters = ['limit' => 200];
+            if ($radarSlug !== '') {
+                $filters['radar'] = $radarSlug;
+            }
+            if ($onlyApproved) {
+                $filters['status'] = 'aprovado';
+            }
+            $rows = $app->products()->search($filters);
+        } else {
+            $rows = [];
+            foreach ($ids as $i) {
+                $r = $app->products()->find($i);
+                if ($r) {
+                    $rows[] = $r;
+                }
+            }
+            usort($rows, static fn ($a, $b) => (int) ($b['hot_score'] ?? 0) <=> (int) ($a['hot_score'] ?? 0));
+        }
+
+        $radar = $radarSlug !== '' ? $app->radars()->findBySlug($radarSlug) : null;
+        View::bare('print/pack', [
+            'rows' => $rows,
+            'radar_name' => $radar?->name,
+            'only_approved' => $onlyApproved,
+            'auto' => isset($_GET['auto']),
+        ], 'Pack — ' . ($radar?->name ?? 'Produtos'));
+    }
+
+    public static function printReport(App $app): void
+    {
+        $reports = $app->reports();
+        $f = array_filter([
+            'radar' => $_GET['radar'] ?? '',
+            'marketplace' => $_GET['marketplace'] ?? '',
+        ], static fn ($v) => $v !== '');
+        $movers = $reports->scoreMovers($f, 20);
+        $radar = !empty($f['radar']) ? $app->radars()->findBySlug((string) $f['radar']) : null;
+
+        View::bare('print/report', [
+            'radar_name' => $radar?->name,
+            'last_run' => $reports->lastRun(),
+            'faixa' => $reports->faixaDistribution($f),
+            'status_dist' => $reports->statusDistribution($f),
+            'top_scores' => $reports->topHotScores($f, 20),
+            'score_up' => $movers['up'],
+            'score_down' => $movers['down'],
+            'price_drops' => $reports->priceDrops($f, 15),
+            'with_video' => $reports->withVideo($f, 30),
+            'by_category' => $reports->byCategory($f),
+            'auto' => isset($_GET['auto']),
+        ], 'Relatório — ' . ($radar?->name ?? 'Geral'));
     }
 
     // ------------------------------------------------------------------ helpers

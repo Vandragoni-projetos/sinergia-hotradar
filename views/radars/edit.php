@@ -15,6 +15,7 @@ $val = static fn ($v) => $v === null ? '' : (string) $v;
 <h1><?= $isNew ? 'Criar Radar' : 'Editar Radar: ' . View::e($radar->name) ?></h1>
 
 <form method="post" action="?r=radar.save" class="panel" style="max-width:820px">
+  <?= View::csrf() ?>
   <?php if (!$isNew): ?><input type="hidden" name="id" value="<?= (int) $radar->id ?>"><?php endif; ?>
 
   <div class="f" style="margin-bottom:14px">
@@ -90,12 +91,8 @@ $val = static fn ($v) => $v === null ? '' : (string) $v;
 
 <?php if (!$isNew): ?>
 <div class="panel" style="max-width:820px;margin-top:14px;border-color:var(--danger)">
-  <h2 style="margin-top:0;color:var(--danger)">Excluir radar</h2>
-  <p class="muted">Os produtos já coletados <strong>permanecem</strong> no histórico (guardam o slug). A configuração é removida.</p>
-  <form method="post" action="?r=radar.delete" onsubmit="return confirm('Excluir o radar &quot;<?= View::e($radar->name) ?>&quot;?');">
-    <input type="hidden" name="id" value="<?= (int) $radar->id ?>">
-    <input type="hidden" name="confirm" value="DELETE">
-    <button class="danger" type="submit">Excluir definitivamente</button>
-  </form>
+  <h2 style="margin-top:0;color:var(--danger)">Excluir ou limpar este radar</h2>
+  <p class="muted">Você verá o impacto antes de confirmar (quantos produtos, quais são exclusivos, quais são compartilhados) e escolhe o que remover.</p>
+  <a class="btn" href="?r=radar.delete&id=<?= (int) $radar->id ?>" style="border-color:var(--danger);color:var(--danger)">Opções de exclusão / limpeza</a>
 </div>
 <?php endif; ?>

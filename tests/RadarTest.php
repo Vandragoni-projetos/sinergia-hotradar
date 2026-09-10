@@ -11,8 +11,9 @@ T::group('Radar — CRUD, filtros e não-hardcoding de categorias');
 $db = TestDb::fresh('radar');
 $repo = new RadarRepository($db, new AuditRepository($db));
 
-// a migration 003 semeou 1 radar
-T::eq(1, $repo->count(), 'radar padrão semeado pela migration');
+// migrations semeiam 2 radares: "Casa & Organização" (003) e "Análises manuais" (006, pausado)
+$base = $repo->count();
+T::eq(2, $base, 'radares semeados pelas migrations (casa-organizacao + analises-manuais)');
 $seed = $repo->findBySlug('casa-organizacao');
 T::ok($seed !== null, 'radar semente existe');
 T::eq(['MLB1574', 'MLB5726'], $seed->mlCategoryIds(), 'categorias do radar vêm do BANCO, não do código');
@@ -28,7 +29,7 @@ $mk = static fn (array $o): Radar => new Radar(
 );
 
 $id = $repo->create($mk(['name' => 'Beleza & Skincare', 'kw' => ['skincare'], 'ex' => ['usado']]));
-T::eq(2, $repo->count(), 'radar criado');
+T::eq($base + 1, $repo->count(), 'radar criado');
 $b = $repo->find($id);
 T::eq('beleza-skincare', $b->slug, 'slug gerado a partir do nome');
 
@@ -51,7 +52,7 @@ T::eq(1, count(array_filter($repo->enabled(), static fn ($r) => $r->slug === 'be
 
 // delete
 $repo->delete($id2);
-T::eq(2, $repo->count(), 'radar excluído');
+T::eq($base + 1, $repo->count(), 'radar excluído');
 
 // ---- filtros do radar ----
 $radar = $mk(['ex' => ['usado', 'reposição'], 'mind' => 30, 'pmin' => 50.0, 'pmax' => 500.0, 'vid' => true]);

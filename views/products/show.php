@@ -10,24 +10,28 @@ use HotRadar\Score\ScoreBreakdown;
  * @var array<string,mixed> $extra
  * @var array<int,string> $signals
  * @var \HotRadar\Radar\Radar|null $primary_radar
- * @var array<int,array<string,mixed>> $product_radars  associações M2M deste produto
+ * @var array<int,array<string,mixed>> $product_radars
  */
+$radNomes = implode(', ', array_map(static fn ($r) => $r['name'], $product_radars)) ?: '—';
 ?>
-<p><a href="?r=products">← voltar à curadoria</a></p>
+<div class="toolbar">
+  <a class="btn" href="?r=products">← voltar à curadoria</a>
+  <div class="spacer"></div>
+  <a class="btn primary" href="?r=print.ficha&id=<?= (int) $p['id'] ?>" target="_blank">📄 Gerar PDF</a>
+  <a class="btn" href="<?= View::e($p['url_original']) ?>" target="_blank" rel="noopener">Abrir no site ↗</a>
+</div>
+
 <h1><?= View::e($p['title']) ?></h1>
 
 <div class="grid" style="grid-template-columns:320px 1fr;gap:20px">
   <div>
     <div class="card">
-      <div class="thumb pcard" style="aspect-ratio:1/1;background:var(--surface-2)">
+      <div class="thumb pcard" style="height:280px;background:var(--surface-2)">
         <?php if ($p['image_url']): ?><img src="<?= View::e($p['image_url']) ?>" style="width:100%;height:100%;object-fit:contain" alt=""><?php endif; ?>
       </div>
-      <div style="padding:14px">
-        <div style="font-size:30px;font-weight:800">
-          <?= match ($p['hot_faixa']) {'muito_quente'=>'🔥','bom'=>'🟠','analisar'=>'🟡',default=>'⚪'} ?>
-          <?= (int) $p['hot_score'] ?><span class="muted" style="font-size:16px">/100</span>
-        </div>
-        <div class="muted"><?= View::e(View::faixaBadge($p['hot_faixa'])) ?> · versão <?= View::e($p['hot_score_version']) ?></div>
+      <div style="padding:14px" class="commercial">
+        <div class="big-score"><?= View::faixaEmoji($p['hot_faixa']) ?> <?= (int) $p['hot_score'] ?><span class="muted" style="font-size:16px">/100</span></div>
+        <div class="muted"><?= View::e(View::faixaNome($p['hot_faixa'])) ?></div>
         <hr style="border:none;border-top:1px solid var(--border);margin:12px 0">
         <div class="price" style="font-size:20px;font-weight:800"><?= View::money($p['price_current']) ?>
           <?php if ($p['discount_pct']): ?><span class="off" style="color:var(--ok);font-size:14px">-<?= (int) $p['discount_pct'] ?>%</span><?php endif; ?>
@@ -37,123 +41,116 @@ use HotRadar\Score\ScoreBreakdown;
     </div>
 
     <div class="panel" style="margin-top:14px">
-      <h2 style="margin-top:0">Decisão editorial</h2>
-      <p>Status atual: <strong><?= View::e(EditorialStatus::label((string) $p['status'])) ?></strong>
+      <h2 style="margin-top:0">Sua decisão</h2>
+      <p>Situação: <strong><?= View::e(EditorialStatus::label((string) $p['status'])) ?></strong>
         <?php if ($p['discard_reason']): ?><br><span class="muted">Motivo: <?= View::e($p['discard_reason']) ?></span><?php endif; ?>
       </p>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <?php foreach ([['aprovado','Aprovar','ok'],['analisar','Analisar','warn'],['descoberto','Reabrir','ghost']] as [$to,$lbl,$cls]): ?>
-          <form method="post" action="?r=product.status">
+          <form method="post" action="?r=product.status"><?= View::csrf() ?>
             <input type="hidden" name="id" value="<?= (int) $p['id'] ?>">
             <input type="hidden" name="to" value="<?= $to ?>">
             <button class="<?= $cls ?>" type="submit"><?= $lbl ?></button>
           </form>
         <?php endforeach; ?>
-        <form method="post" action="?r=product.status" onsubmit="var r=prompt('Motivo do descarte (opcional):');if(r===null)return false;this.reason.value=r;">
+        <form method="post" action="?r=product.status" onsubmit="var r=prompt('Motivo do descarte (opcional):');if(r===null)return false;this.reason.value=r;"><?= View::csrf() ?>
           <input type="hidden" name="id" value="<?= (int) $p['id'] ?>">
           <input type="hidden" name="to" value="descartado">
           <input type="hidden" name="reason" value="">
           <button class="danger" type="submit">Descartar</button>
         </form>
       </div>
-      <p style="margin-bottom:0"><a href="<?= View::e($p['url_original']) ?>" target="_blank" rel="noopener">Abrir no Mercado Livre ↗</a></p>
     </div>
   </div>
 
-  <div>
+  <div class="commercial">
     <div class="panel">
-      <h2 style="margin-top:0">Por que recebeu esse HOT SCORE?</h2>
+      <h2 style="margin-top:0">Informações do produto</h2>
+      <div class="kv2">
+        <div>Marketplace</div><div><?= View::e(View::marketplaceLabel((string) $p['marketplace'])) ?></div>
+        <div>Radar / nicho</div><div><?= View::e($radNomes) ?></div>
+        <div>Loja / vendedor</div><div><?= View::e($extra['seller'] ?? '—') ?><?= !empty($extra['official_store']) ? ' · loja oficial' : '' ?></div>
+        <div>Preço atual</div><div><strong><?= View::money($p['price_current']) ?></strong></div>
+        <div>Preço anterior</div><div><?= $p['price_previous'] ? View::money($p['price_previous']) : '—' ?></div>
+        <div>Desconto</div><div><?= $p['discount_pct'] !== null ? (int) $p['discount_pct'] . '%' : '—' ?></div>
+        <div>Avaliação</div><div><?= $p['rating'] !== null ? '★ ' . number_format((float) $p['rating'],1,',','') : 'Não informada' ?></div>
+        <div>Procura / vendas</div><div><?= View::e(View::vendasNome($p['sales_signal'])) ?></div>
+        <div>Tem vídeo</div><div><?= ((int) $p['has_video']) ? 'Sim' : 'Não' ?></div>
+        <div>Descoberto</div><div><?= View::e(View::dataCurta($p['discovered_at'])) ?></div>
+        <div>Última coleta</div><div><?= View::e(View::dataCurta($p['last_collected_at'])) ?></div>
+        <div>Confiança do dado</div><div><?= View::e(View::confiancaDado($p['data_quality'])) ?></div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px">
+      <h2 style="margin-top:0">Por que este Hot Score</h2>
       <?php if ($breakdown): foreach ($breakdown->components as $c):
         $pct = $c['max'] > 0 ? round($c['points'] / $c['max'] * 100) : 0; ?>
         <div class="scoreline <?= $c['available'] ? '' : 'absent' ?>">
           <div><?= View::e($c['label']) ?></div>
           <div>
             <div class="bar"><i style="width:<?= $pct ?>%"></i></div>
-            <div class="muted" style="font-size:11px"><?= View::e($c['detail']) ?></div>
+            <div class="muted" style="font-size:11px"><?= View::e(View::fatorDetalhe((string) $c['detail'])) ?></div>
           </div>
           <div class="pts"><?= (int) $c['points'] ?>/<?= (int) $c['max'] ?></div>
         </div>
       <?php endforeach; ?>
-        <div class="scoreline total">
-          <div>TOTAL</div><div></div>
-          <div class="pts"><?= $breakdown->total ?>/<?= $breakdown->maxTotal ?> <?= $breakdown->faixaEmoji ?></div>
-        </div>
-        <p class="muted" style="font-size:12px">Blocos com opacidade reduzida = dado não disponível (não inventamos valor). "Avaliação" tem neutro explícito quando não há nota.</p>
-      <?php else: ?>
-        <p class="muted">Sem detalhamento salvo.</p>
-      <?php endif; ?>
+        <div class="scoreline total"><div>TOTAL</div><div></div>
+          <div class="pts"><?= $breakdown->total ?>/<?= $breakdown->maxTotal ?> <?= $breakdown->faixaEmoji ?></div></div>
+        <p class="muted" style="font-size:12px">Fatores esmaecidos = dado não informado pela fonte (nada é estimado).</p>
+      <?php else: ?><p class="muted">Sem detalhamento salvo.</p><?php endif; ?>
     </div>
 
+    <?php if (count($history) > 1): ?>
     <div class="panel" style="margin-top:14px">
-      <h2 style="margin-top:0">Dados disponíveis</h2>
-      <div class="kv">
-        <div>Marketplace</div><div><?= View::e(View::marketplaceLabel((string) $p['marketplace'])) ?></div>
+      <h2 style="margin-top:0">Evolução (coletas anteriores)</h2>
+      <table class="hist">
+        <tr><th>Quando</th><th>Preço</th><th>Desconto</th><th>Procura</th><th>Nota</th><th>Hot Score</th></tr>
+        <?php $prev = null; foreach ($history as $h): ?>
+          <tr>
+            <td><?= View::e(date('d/m H:i', strtotime((string) $h['collected_at']))) ?></td>
+            <td><?= View::money($h['price_current']) ?>
+              <?php if ($prev && $h['price_current'] !== null && $prev['price_current'] !== null):
+                $d = (float) $h['price_current'] - (float) $prev['price_current'];
+                if (abs($d) >= 0.01): ?><span class="<?= $d < 0 ? 'updown-down' : 'updown-up' ?>"><?= $d < 0 ? '▼' : '▲' ?></span><?php endif; endif; ?></td>
+            <td><?= $h['discount_pct'] !== null ? (int) $h['discount_pct'] . '%' : '—' ?></td>
+            <td><?= View::e(View::vendasNome($h['sales_signal'] ?? null)) ?></td>
+            <td><?= $h['rating'] !== null ? number_format((float) $h['rating'],1,',','') : '—' ?></td>
+            <td><strong><?= (int) $h['hot_score'] ?></strong></td>
+          </tr>
+        <?php $prev = $h; endforeach; ?>
+      </table>
+    </div>
+    <?php endif; ?>
+
+    <details class="tech">
+      <summary>Detalhes técnicos (para diagnóstico)</summary>
+      <div class="kv" style="font-size:13px">
         <div>ID do marketplace</div><div><?= View::e($p['marketplace_product_id']) ?></div>
-        <div>Loja / vendedor</div><div><?= View::e($extra['seller'] ?? '—') ?><?= !empty($extra['official_store']) ? ' · loja oficial' : '' ?></div>
-        <div>Categoria (nicho)</div><div><?= View::e($p['category'] ?? '—') ?> <span class="muted">(aderência: <?= View::e($extra['niche_confidence'] ?? 'n/d') ?>)</span></div>
         <div>Categoria de origem</div><div><?= View::e($extra['source_category_label'] ?? '—') ?></div>
-        <div>Radares associados</div><div>
-          <?php if ($product_radars): foreach ($product_radars as $pr): ?>
-            <span class="badge q">📡 <?= View::e($pr['name']) ?><?php if ($primary_radar && $pr['radar_id'] === $primary_radar->id): ?> <span class="muted">(descobriu)</span><?php endif; ?></span>
-          <?php endforeach; else: ?><span class="muted">nenhum (produto anterior aos radares)</span><?php endif; ?>
-        </div>
-        <div>Preço atual / anterior</div><div><?= View::money($p['price_current']) ?> / <?= View::money($p['price_previous']) ?></div>
-        <div>Desconto</div><div><?= $p['discount_pct'] !== null ? (int) $p['discount_pct'] . '%' : '—' ?></div>
-        <div>Sinal de vendas</div><div><?= View::e(View::salesLabel($p['sales_signal'])) ?> <span class="muted">(faixa textual do ML — não é número)</span></div>
-        <div>Avaliação</div><div><?= $p['rating'] !== null ? '★ ' . number_format((float) $p['rating'],1,'.','') : '—' ?><?= $p['rating_count'] !== null ? ' (' . (int) $p['rating_count'] . ')' : '' ?></div>
-        <div>Posição / ranking</div><div><?= $p['rank_position'] !== null ? '#' . (int) $p['rank_position'] . ' na página de ofertas' : '—' ?></div>
-        <div>Campanha / promo</div><div><?= View::e($p['campaign'] ?? '—') ?></div>
-        <div>🎬 Possui vídeo</div><div><?= $p['has_video'] ? 'SIM (has_published_clips)' : 'NÃO' ?></div>
-        <div>Comissão</div><div><?= $p['commission_pct'] !== null ? $p['commission_pct'] . '%' : '— (Shopee only)' ?></div>
-        <div>URL afiliada</div><div><?= $p['url_affiliate'] ? View::e($p['url_affiliate']) : '— (fase posterior)' ?></div>
+        <div>Aderência ao nicho</div><div><?= View::e($extra['niche_confidence'] ?? '—') ?></div>
+        <div>Posição/ranking</div><div><?= $p['rank_position'] !== null ? '#' . (int) $p['rank_position'] : '—' ?></div>
+        <div>Campanha (código)</div><div><?= View::e($p['campaign'] ?? '—') ?></div>
         <div>Sinais especiais</div><div><?= $signals ? View::e(implode(', ', $signals)) : '—' ?></div>
-        <div>Qualidade do dado</div><div><?= View::e($p['data_quality']) ?> · fonte <?= View::e($p['source']) ?></div>
-        <div>Descoberto em</div><div><?= View::e($p['discovered_at']) ?></div>
-        <div>Última coleta</div><div><?= View::e($p['last_collected_at']) ?></div>
+        <div>Comissão</div><div><?= $p['commission_pct'] !== null ? $p['commission_pct'] . '%' : '—' ?></div>
+        <div>URL afiliada</div><div><?= $p['url_affiliate'] ? View::e($p['url_affiliate']) : '— (fase posterior)' ?></div>
+        <div>Origem da coleta</div><div><?= View::e($p['data_quality']) ?> · <?= View::e($p['source']) ?></div>
+        <div>Radares (com "descobriu")</div><div>
+          <?php foreach ($product_radars as $pr): ?>
+            <span class="badge q">📡 <?= View::e($pr['name']) ?><?php if ($primary_radar && $pr['radar_id'] === $primary_radar->id): ?> (descobriu)<?php endif; ?></span>
+          <?php endforeach; ?>
+        </div>
       </div>
-    </div>
-
-    <div class="panel" style="margin-top:14px">
-      <h2 style="margin-top:0">Histórico de coletas <span class="muted">(<?= count($history) ?> snapshot<?= count($history) === 1 ? '' : 's' ?>)</span></h2>
-      <?php if (count($history) > 1): ?>
-        <table class="hist">
-          <tr><th>Quando</th><th>Preço</th><th>Desc.</th><th>Vendas</th><th>Nota</th><th>Rank</th><th>HOT</th></tr>
-          <?php $prev = null; foreach ($history as $h): ?>
-            <tr>
-              <td><?= View::e(date('d/m H:i', strtotime((string) $h['collected_at']))) ?></td>
-              <td><?= View::money($h['price_current']) ?>
-                <?php if ($prev && $h['price_current'] !== null && $prev['price_current'] !== null):
-                  $d = (float) $h['price_current'] - (float) $prev['price_current'];
-                  if (abs($d) >= 0.01): ?>
-                    <span class="<?= $d < 0 ? 'updown-down' : 'updown-up' ?>"><?= ($d < 0 ? '▼' : '▲') ?></span>
-                  <?php endif; endif; ?>
-              </td>
-              <td><?= $h['discount_pct'] !== null ? (int) $h['discount_pct'] . '%' : '—' ?></td>
-              <td><?= View::e($h['sales_signal'] ?? '—') ?></td>
-              <td><?= $h['rating'] !== null ? number_format((float) $h['rating'],1,'.','') : '—' ?></td>
-              <td><?= $h['rank_position'] !== null ? '#' . (int) $h['rank_position'] : '—' ?></td>
-              <td><strong><?= (int) $h['hot_score'] ?></strong></td>
-            </tr>
-          <?php $prev = $h; endforeach; ?>
-        </table>
-      <?php else: ?>
-        <p class="muted">Só uma coleta até agora. A tendência aparece a partir da 2ª coleta do mesmo produto (base para E6).</p>
-      <?php endif; ?>
-    </div>
-
-    <div class="panel" style="margin-top:14px">
-      <h2 style="margin-top:0">Trilha editorial</h2>
+      <h3 style="margin:14px 0 6px">Trilha editorial</h3>
       <?php if ($timeline): ?>
         <table class="hist">
           <?php foreach ($timeline as $t): ?>
-            <tr>
-              <td><?= View::e(date('d/m H:i', strtotime((string) $t['created_at']))) ?></td>
+            <tr><td><?= View::e(date('d/m H:i', strtotime((string) $t['created_at']))) ?></td>
               <td><?= View::e($t['from_status'] ?? '—') ?> → <strong><?= View::e($t['to_status']) ?></strong></td>
-              <td class="muted"><?= View::e($t['actor']) ?><?= $t['reason'] ? ' · ' . View::e($t['reason']) : '' ?></td>
-            </tr>
+              <td class="muted"><?= View::e($t['actor']) ?><?= $t['reason'] ? ' · ' . View::e($t['reason']) : '' ?></td></tr>
           <?php endforeach; ?>
         </table>
       <?php else: ?><p class="muted">Sem mudanças de status ainda.</p><?php endif; ?>
-    </div>
+    </details>
   </div>
 </div>

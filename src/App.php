@@ -9,10 +9,13 @@ use HotRadar\Collector\MercadoLivre\OfertasJsonParser;
 use HotRadar\Collector\Shopee\ShopeeCollector;
 use HotRadar\Db\Connection;
 use HotRadar\Db\Migrator;
+use HotRadar\Analyze\UrlAnalyzer;
 use HotRadar\Discovery\DiscoveryService;
+use HotRadar\Export\ProductCsvExporter;
 use HotRadar\Integration\OpenAi\OpenAiClient;
 use HotRadar\Integration\OpenAi\OpenAiConfig;
 use HotRadar\Integration\ShopeeStatus;
+use HotRadar\Radar\RadarLifecycleService;
 use HotRadar\Radar\RadarRepository;
 use HotRadar\Report\AiReportService;
 use HotRadar\Report\ReportService;
@@ -88,6 +91,34 @@ final class App
     public function radars(): RadarRepository
     {
         return new RadarRepository($this->db, $this->audit());
+    }
+
+    public function radarLifecycle(): RadarLifecycleService
+    {
+        return new RadarLifecycleService($this->db, $this->audit());
+    }
+
+    public function productCsvExporter(): ProductCsvExporter
+    {
+        return new ProductCsvExporter();
+    }
+
+    public function urlAnalyzer(): UrlAnalyzer
+    {
+        $ml = $this->config['marketplaces']['mercado_livre'];
+        $cats = [];
+        foreach ($this->radars()->enabled() as $r) {
+            foreach ($r->mlCategoryIds() as $c) {
+                $cats[$c] = true;
+            }
+        }
+        return new UrlAnalyzer(
+            $this->mlHttp(),
+            new OfertasJsonParser(),
+            $this->products(),
+            $this->hotScore(),
+            array_keys($cats),
+        );
     }
 
     public function hotScoreConfig(): HotScoreConfig

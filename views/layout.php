@@ -1,13 +1,16 @@
 <?php
 /** @var string $content @var string $title @var string $active */
+use HotRadar\Web\Auth;
 use HotRadar\Web\View;
 $nav = [
-    'dashboard' => ['?r=dashboard', 'Dashboard'],
+    'dashboard' => ['?r=dashboard', 'Início'],
     'products' => ['?r=products', 'Curadoria'],
     'radars' => ['?r=radars', 'Radares'],
+    'analyze' => ['?r=analyze', 'Analisar por URL'],
     'reports' => ['?r=reports', 'Relatórios'],
     'config' => ['?r=config', 'Configurações'],
 ];
+$user = Auth::currentUser();
 ?><!doctype html>
 <html lang="pt-br">
 <head>
@@ -24,6 +27,11 @@ $nav = [
       <a href="<?= $href ?>" class="<?= $active === $key ? 'active' : '' ?>"><?= $label ?></a>
     <?php endforeach; ?>
   </nav>
+  <div class="spacer" style="flex:1"></div>
+  <?php if ($user): ?>
+    <span class="muted" style="font-size:12px"><?= View::e($user) ?></span>
+    <a href="?r=logout" class="muted" style="font-size:12px;margin-left:10px">Sair</a>
+  <?php endif; ?>
 </div>
 <div class="wrap">
   <?php if (!empty($_GET['flash'])): ?>
