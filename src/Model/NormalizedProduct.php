@@ -44,6 +44,8 @@ final class NormalizedProduct
         public string $dataQuality = 'scrape_json',
         public string $source = '',
         public ?string $nicheConfidence = null, // alta|media|baixa|fora|null
+        public ?string $radarSlug = null,
+        public ?int $radarId = null,
     ) {
         // Normalização da chave de dedup: sempre MAIÚSCULA e sem espaços.
         // Remove divergência entre SQLite (índice case-sensitive/BINARY) e
@@ -56,6 +58,69 @@ final class NormalizedProduct
     public function dedupeKey(): string
     {
         return $this->marketplace . ':' . $this->marketplaceProductId;
+    }
+
+    /** Ranking de fidelidade da fonte (maior = melhor). */
+    public static function qualityRank(string $dq): int
+    {
+        return ['api' => 4, 'scrape_json' => 3, 'feed' => 2, 'manual' => 1, 'scrape_html' => 0][$dq] ?? 0;
+    }
+
+    /**
+     * Esta coleta veio do fallback HTML (página degradada / rate-limit)?
+     * Nesse caso ela só observa título/url/imagem/preço — os demais campos são "não vistos".
+     */
+    public function isDegraded(): bool
+    {
+        return ($this->marketplaceExtra['parser'] ?? null) === 'html_fallback'
+            || $this->dataQuality === 'scrape_html';
+    }
+
+    /**
+     * Preenche os campos que ESTA coleta NÃO observou a partir do registro anterior.
+     * Só age quando isDegraded() — uma coleta plena é autoritativa.
+     * Regra: nunca rebaixar um dado conhecido para NULL/0 por falta do fallback.
+     */
+    public function fillGapsFrom(NormalizedProduct $prev): void
+    {
+        if (!$this->isDegraded()) {
+            return;
+        }
+        $this->rating ??= $prev->rating;
+        $this->ratingCount ??= $prev->ratingCount;
+        $this->rankPosition ??= $prev->rankPosition;
+        $this->salesSignal ??= $prev->salesSignal;
+        $this->salesExact ??= $prev->salesExact;
+        $this->pricePrevious ??= $prev->pricePrevious;
+        $this->discountPct ??= $prev->discountPct;
+        $this->commissionPct ??= $prev->commissionPct;
+        $this->commissionEstimated ??= $prev->commissionEstimated;
+        $this->campaign ??= $prev->campaign;
+        $this->shopId ??= $prev->shopId;
+        $this->imageUrl ??= $prev->imageUrl;
+        $this->category ??= $prev->category;
+        $this->subcategory ??= $prev->subcategory;
+        $this->nicheConfidence ??= $prev->nicheConfidence;
+        $this->urlAffiliate ??= $prev->urlAffiliate;
+
+        // vídeo: o fallback nunca vê vídeo → mantém o que já se sabia
+        if (!$this->hasVideo && $prev->hasVideo) {
+            $this->hasVideo = true;
+        }
+        // tags/sinais: o fallback não traz → mantém os anteriores
+        if ($this->specialSignals === [] && $prev->specialSignals !== []) {
+            $this->specialSignals = $prev->specialSignals;
+        }
+        // qualidade do dado: preserva a melhor já conhecida
+        if (self::qualityRank($prev->dataQuality) > self::qualityRank($this->dataQuality)) {
+            $this->dataQuality = $prev->dataQuality;
+            $this->source = $prev->source;
+        }
+        // guarda a proveniência real desta coleta (foi um fallback), sem perder os extras ricos
+        $prevExtra = is_array($prev->marketplaceExtra) ? $prev->marketplaceExtra : [];
+        $this->marketplaceExtra = array_merge($prevExtra, $this->marketplaceExtra, [
+            'last_collection_parser' => 'html_fallback',
+        ]);
     }
 
     /** @return array<string,mixed> */
@@ -84,9 +149,19 @@ final class NormalizedProduct
             'commission_pct' => $this->commissionPct,
             'commission_estimated' => $this->commissionEstimated,
             'campaign' => $this->campaign,
-            'marketplace_extra' => json_encode($this->marketplaceExtra, JSON_UNESCAPED_UNICODE),
+            // niche_confidence é propriedade de 1ª classe, mas persiste dentro do JSON de extras
+            // (para reidratar corretamente no recompute e no merge de fallback).
+            'marketplace_extra' => json_encode(
+                array_merge(
+                    is_array($this->marketplaceExtra) ? $this->marketplaceExtra : [],
+                    $this->nicheConfidence !== null ? ['niche_confidence' => $this->nicheConfidence] : []
+                ),
+                JSON_UNESCAPED_UNICODE
+            ),
             'data_quality' => $this->dataQuality,
             'source' => $this->source,
+            'radar_id' => $this->radarId,
+            'radar_slug' => $this->radarSlug,
         ];
     }
 }

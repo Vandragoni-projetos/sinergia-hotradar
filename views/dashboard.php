@@ -4,9 +4,13 @@ use HotRadar\Editorial\EditorialStatus;
 /**
  * @var int $total @var int $today @var int $with_video @var int $snapshots
  * @var array<string,int> $faixa @var array<string,int> $status
- * @var array<int,array<string,mixed>> $by_marketplace @var array<int,array<string,mixed>> $runs
- * @var array<int,array{marketplace:string,available:bool,reason:?string}> $collectors
+ * @var array<int,array{key:string,n:int}> $by_radar
+ * @var array<int,array<string,mixed>> $runs
+ * @var array<int,array{marketplace:string,available:bool,reason:?string,label:string}> $collectors
+ * @var array<int,\HotRadar\Radar\Radar> $radars
  */
+$countByRadar = [];
+foreach ($by_radar as $r) { $countByRadar[$r['key']] = $r['n']; }
 ?>
 <h1>Dashboard</h1>
 
@@ -33,61 +37,56 @@ use HotRadar\Editorial\EditorialStatus;
         <tr>
           <td><strong><?= View::e(View::marketplaceLabel($c['marketplace'])) ?></strong></td>
           <td style="text-align:right">
-            <?php if ($c['available']): ?>
-              <span class="badge" style="background:var(--ok);color:#fff;border-color:transparent">ATIVO</span>
-            <?php else: ?>
-              <span class="badge">DESLIGADO</span>
-            <?php endif; ?>
+            <span class="badge" style="<?= $c['available'] ? 'background:var(--ok);color:#fff;border-color:transparent' : '' ?>">
+              <?= $c['available'] ? 'ATIVO' : 'DESLIGADO' ?>
+            </span>
           </td>
         </tr>
-        <?php if (!$c['available'] && $c['reason']): ?>
-          <tr><td colspan="2" class="muted" style="font-size:12px"><?= View::e($c['reason']) ?></td></tr>
-        <?php endif; ?>
-      <?php endforeach; ?>
-      <?php foreach ($by_marketplace as $m): ?>
-        <tr><td class="muted"><?= View::e(View::marketplaceLabel((string) $m['marketplace'])) ?></td>
-        <td style="text-align:right"><?= (int) $m['n'] ?> produtos</td></tr>
+        <tr><td colspan="2" class="muted" style="font-size:12px"><?= View::e($c['label']) ?><?= (!$c['available'] && $c['reason']) ? ' — ' . View::e($c['reason']) : '' ?></td></tr>
       <?php endforeach; ?>
     </table>
+  </div>
+
+  <div class="panel">
+    <h2 style="margin-top:0">Radares</h2>
+    <table>
+      <?php foreach ($radars as $rd): ?>
+        <tr>
+          <td><a href="?r=radar.edit&id=<?= (int) $rd->id ?>"><?= View::e($rd->name) ?></a></td>
+          <td style="text-align:right">
+            <span class="badge <?= $rd->enabled ? '' : 'baixo' ?>" style="<?= $rd->enabled ? 'background:var(--ok);color:#fff;border-color:transparent' : '' ?>"><?= $rd->enabled ? 'ATIVO' : 'off' ?></span>
+            <span class="muted"><?= (int) ($countByRadar[$rd->slug] ?? 0) ?> prod.</span>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+      <?php if (!$radars): ?><tr><td colspan="2" class="muted">Nenhum radar. <a href="?r=radar.edit">Criar Radar</a></td></tr><?php endif; ?>
+    </table>
+    <p style="margin-bottom:0"><a href="?r=radars">Gerenciar radares →</a></p>
   </div>
 
   <div class="panel">
     <h2 style="margin-top:0">Status editorial</h2>
     <table>
       <?php foreach (EditorialStatus::active() as $s): ?>
-        <tr>
-          <td><?= View::e(EditorialStatus::label($s)) ?></td>
-          <td style="text-align:right"><?= (int) ($status[$s] ?? 0) ?></td>
-        </tr>
+        <tr><td><?= View::e(EditorialStatus::label($s)) ?></td><td style="text-align:right"><?= (int) ($status[$s] ?? 0) ?></td></tr>
       <?php endforeach; ?>
     </table>
-    <p class="muted" style="font-size:12px;margin-bottom:0">Demais estados (produção → publicado → monitorando) previstos, não implementados nesta etapa.</p>
-  </div>
-
-  <div class="panel">
-    <h2 style="margin-top:0">🔎 Rodar coleta (Mercado Livre)</h2>
-    <form method="post" action="?r=collect.run">
-      <div class="f" style="margin-bottom:10px">
-        <label>Páginas por categoria</label>
-        <input type="number" name="pages" value="3" min="1" max="10" style="width:90px">
-      </div>
-      <label style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
-        <input type="checkbox" name="dry_run" value="1"> dry-run (não grava)
-      </label>
-      <button class="primary" type="submit">Coletar agora</button>
+    <form method="post" action="?r=collect.run" style="margin-top:12px">
+      <label style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><input type="checkbox" name="dry_run" value="1"> dry-run</label>
+      <button class="primary" type="submit">Coletar agora (todos os radares ativos)</button>
     </form>
-    <p class="muted" style="font-size:12px">Fonte: <code>/ofertas</code> · nichos Casa + Cozinha + Organização (MLB1574, MLB5726).</p>
   </div>
 </div>
 
 <h2>Últimas coletas</h2>
 <div class="panel">
   <table>
-    <tr><th>Quando</th><th>Marketplace</th><th>Modo</th><th>Status</th><th>Pág.</th><th>Cards</th><th>Novos</th><th>Atual.</th><th>Snap.</th><th>Erros</th></tr>
+    <tr><th>Quando</th><th>Radar</th><th>Marketplace</th><th>Modo</th><th>Status</th><th>Pág.</th><th>Cards</th><th>Novos</th><th>Atual.</th><th>Snap.</th><th>Erros</th></tr>
     <?php foreach ($runs as $run):
       $errs = json_decode((string) ($run['errors'] ?? '[]'), true) ?: []; ?>
       <tr>
         <td><?= View::ago($run['started_at']) ?></td>
+        <td><?= View::e($run['radar_slug'] ?? '—') ?></td>
         <td><?= View::e(View::marketplaceLabel((string) $run['marketplace'])) ?></td>
         <td><?= View::e($run['mode']) ?></td>
         <td><?= View::e($run['status']) ?></td>
@@ -99,6 +98,6 @@ use HotRadar\Editorial\EditorialStatus;
         <td class="muted" style="font-size:11px"><?= $errs ? View::e(implode(' | ', array_slice($errs, 0, 2))) : '—' ?></td>
       </tr>
     <?php endforeach; ?>
-    <?php if (!$runs): ?><tr><td colspan="10" class="muted">Nenhuma coleta ainda.</td></tr><?php endif; ?>
+    <?php if (!$runs): ?><tr><td colspan="11" class="muted">Nenhuma coleta ainda.</td></tr><?php endif; ?>
   </table>
 </div>

@@ -54,3 +54,25 @@ T::ok(count($comRank) >= 5, 'capturou posição/rank (' . count($comRank) . ')')
 
 // extractCtxJson tolera lixo
 T::eq(null, OfertasJsonParser::extractCtxJson('<html>sem json</html>'), 'extractCtxJson retorna null sem marcador');
+
+// -------- Fallback HTML (página degradada sob rate-limit, sem o JSON rico) --------
+T::group('OfertasJsonParser — fallback HTML (dados reduzidos)');
+$fbHtml = (string) file_get_contents(__DIR__ . '/fixtures/ofertas_html_fallback.html');
+$fb = $parser->parse($fbHtml, 'MLB1574', 'Casa, Móveis e Decoração');
+T::ok($fb['ok'] === true, 'fallback HTML retornou ok');
+T::ok(str_contains((string) $fb['reason'], 'html_fallback'), 'reason sinaliza fallback (' . $fb['reason'] . ')');
+T::ok(count($fb['items']) >= 3, 'fallback extraiu produtos (' . count($fb['items']) . ')');
+$fp = $fb['items'][0];
+T::eq('scrape_html', $fp->dataQuality, 'produtos do fallback marcados data_quality=scrape_html');
+T::eq('ofertas_ml', $fp->source, 'source segue ofertas_ml');
+T::ok($fp->title !== '' && str_starts_with($fp->urlOriginal, 'https://'), 'título e URL preenchidos');
+T::eq(false, $fp->hasVideo, 'fallback NÃO inventa vídeo (sempre false)');
+T::eq(null, $fp->rankPosition, 'fallback NÃO inventa rank');
+T::eq(null, $fp->salesSignal, 'fallback NÃO inventa sinal de vendas');
+T::eq(null, $fp->rating, 'fallback NÃO inventa avaliação');
+T::ok($fp->priceCurrent === null || $fp->priceCurrent > 0, 'preço positivo ou null (nunca 0 falso)');
+
+// página realmente vazia → não ok, motivo de bloqueio
+$blocked = $parser->parse('<html><body>nada aqui</body></html>', 'MLB1', 'x');
+T::ok($blocked['ok'] === false, 'página sem cards nem JSON: ok=false');
+T::ok(str_contains((string) $blocked['reason'], 'bloqueio') || str_contains((string) $blocked['reason'], 'rate-limit'), 'motivo aponta bloqueio/rate-limit');

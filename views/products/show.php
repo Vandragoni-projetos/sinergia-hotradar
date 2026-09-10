@@ -9,6 +9,8 @@ use HotRadar\Score\ScoreBreakdown;
  * @var array<int,array<string,mixed>> $timeline
  * @var array<string,mixed> $extra
  * @var array<int,string> $signals
+ * @var \HotRadar\Radar\Radar|null $primary_radar
+ * @var array<int,array<string,mixed>> $product_radars  associações M2M deste produto
  */
 ?>
 <p><a href="?r=products">← voltar à curadoria</a></p>
@@ -90,6 +92,11 @@ use HotRadar\Score\ScoreBreakdown;
         <div>Loja / vendedor</div><div><?= View::e($extra['seller'] ?? '—') ?><?= !empty($extra['official_store']) ? ' · loja oficial' : '' ?></div>
         <div>Categoria (nicho)</div><div><?= View::e($p['category'] ?? '—') ?> <span class="muted">(aderência: <?= View::e($extra['niche_confidence'] ?? 'n/d') ?>)</span></div>
         <div>Categoria de origem</div><div><?= View::e($extra['source_category_label'] ?? '—') ?></div>
+        <div>Radares associados</div><div>
+          <?php if ($product_radars): foreach ($product_radars as $pr): ?>
+            <span class="badge q">📡 <?= View::e($pr['name']) ?><?php if ($primary_radar && $pr['radar_id'] === $primary_radar->id): ?> <span class="muted">(descobriu)</span><?php endif; ?></span>
+          <?php endforeach; else: ?><span class="muted">nenhum (produto anterior aos radares)</span><?php endif; ?>
+        </div>
         <div>Preço atual / anterior</div><div><?= View::money($p['price_current']) ?> / <?= View::money($p['price_previous']) ?></div>
         <div>Desconto</div><div><?= $p['discount_pct'] !== null ? (int) $p['discount_pct'] . '%' : '—' ?></div>
         <div>Sinal de vendas</div><div><?= View::e(View::salesLabel($p['sales_signal'])) ?> <span class="muted">(faixa textual do ML — não é número)</span></div>

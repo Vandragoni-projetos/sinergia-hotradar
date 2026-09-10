@@ -6,8 +6,11 @@ declare(strict_types=1);
  *
  *   php bin/hr.php migrate
  *   php bin/hr.php migrate:status
- *   php bin/hr.php collect:ml [--dry-run] [--pages=3] [--categories=MLB1574,MLB5726] [--save-raw]
- *   php bin/hr.php collect:shopee                 (mostra "aguardando credenciais")
+ *   php bin/hr.php radars                          lista radares
+ *   php bin/hr.php collect:radar <slug> [--dry-run] roda um radar
+ *   php bin/hr.php collect:all [--dry-run]          roda todos os radares ativos
+ *   php bin/hr.php collect:ml [--dry-run] [--pages=3] [--categories=MLB1574,...] [--radar=slug]
+ *   php bin/hr.php collect:shopee                   (mostra status Shopee)
  *   php bin/hr.php score:recompute
  *   php bin/hr.php stats
  *   php bin/hr.php test
@@ -17,6 +20,7 @@ require __DIR__ . '/../config/bootstrap.php';
 
 use HotRadar\App;
 use HotRadar\Collector\CollectorContext;
+use HotRadar\Model\ProductHydrator;
 
 $argvv = $argv;
 array_shift($argvv);
@@ -51,8 +55,49 @@ try {
             line('Aplicadas: ' . implode(', ', $app->migrator()->status() ?: ['(nenhuma)']));
             break;
 
+        case 'radars':
+            foreach ($app->radars()->all() as $rd) {
+                line(sprintf(
+                    '  [%s] %-22s (%s) — cats: %s | páginas: %d',
+                    $rd->enabled ? 'ON ' : 'off',
+                    $rd->name,
+                    $rd->slug,
+                    implode(',', $rd->mlCategoryIds()) ?: '(nenhuma)',
+                    $rd->pagesPerCategory
+                ));
+            }
+            break;
+
+        case 'collect:radar':
+            $slug = (string) ($argvv[0] ?? '');
+            $rd = $slug !== '' ? $app->radars()->findBySlug($slug) : null;
+            if ($rd === null) {
+                line('Radar não encontrado. Use: php bin/hr.php radars');
+                exit(1);
+            }
+            printCollectResult($app->discovery()->run(
+                $app->mercadoLivreCollector(),
+                new CollectorContext(dryRun: isset($flags['dry-run']), radar: $rd)
+            ));
+            break;
+
+        case 'collect:all':
+            foreach ($app->radars()->enabled() as $rd) {
+                if (!$rd->hasMarketplace('mercado_livre')) {
+                    continue;
+                }
+                line('>>> Radar: ' . $rd->name);
+                printCollectResult($app->discovery()->run(
+                    $app->mercadoLivreCollector(),
+                    new CollectorContext(dryRun: isset($flags['dry-run']), radar: $rd)
+                ));
+            }
+            break;
+
         case 'collect:ml':
+            // modo legado / manual. Aceita --radar=slug ou --categories=.
             $ml = hr_config()['marketplaces']['mercado_livre'];
+            $radar = isset($opts['radar']) ? $app->radars()->findBySlug($opts['radar']) : null;
             $ctx = new CollectorContext(
                 dryRun: isset($flags['dry-run']),
                 maxPages: (int) ($opts['pages'] ?? $ml['max_pages']),
@@ -60,6 +105,7 @@ try {
                     ? array_values(array_filter(array_map('trim', explode(',', $opts['categories']))))
                     : [],
                 saveRawToDisk: isset($flags['save-raw']),
+                radar: $radar,
             );
             $r = $app->discovery()->run($app->mercadoLivreCollector(), $ctx);
             printCollectResult($r);
@@ -103,11 +149,23 @@ function printCollectResult(array $r): void
         return;
     }
     line('  run_id ............. ' . $r['run_id']);
+    if (!empty($r['radar'])) {
+        line('  radar ............. ' . ($r['radar_name'] ?? $r['radar']));
+    }
     line('  páginas ........... ' . $r['pages']);
     line('  cards vistos ...... ' . $r['cards']);
+    if (($r['filtered'] ?? 0) > 0) {
+        line('  filtrados (radar) . ' . $r['filtered']);
+    }
     line('  produtos coletados  ' . $r['collected']);
     line('  novos ............. ' . $r['new']);
     line('  atualizados ....... ' . $r['updated']);
+    if (($r['assoc_new'] ?? 0) > 0) {
+        line('  novas assoc. radar  ' . $r['assoc_new']);
+    }
+    if (($r['gaps_filled'] ?? 0) > 0) {
+        line('  dados ricos manti. ' . $r['gaps_filled'] . ' (merge de fallback)');
+    }
     line('  snapshots ......... ' . $r['snapshots']);
     line('  distribuição HOT SCORE:');
     foreach ($r['score_distribution'] as $k => $v) {
@@ -150,7 +208,7 @@ function recomputeScores(App $app): int
     $rows = $app->db->all('SELECT * FROM hr_products');
     $n = 0;
     foreach ($rows as $row) {
-        $np = productRowToNormalized($row);
+        $np = ProductHydrator::fromRow($row);
         $b = $hotScore->evaluate($np);
         $app->db->run(
             'UPDATE hr_products SET hot_score=?, hot_faixa=?, hot_score_breakdown=?, hot_score_version=?, updated_at=? WHERE id=?',
@@ -159,41 +217,6 @@ function recomputeScores(App $app): int
         $n++;
     }
     return $n;
-}
-
-/** @param array<string,mixed> $row */
-function productRowToNormalized(array $row): \HotRadar\Model\NormalizedProduct
-{
-    $extra = json_decode((string) ($row['marketplace_extra'] ?? '{}'), true) ?: [];
-    $signals = json_decode((string) ($row['special_signals'] ?? '[]'), true) ?: [];
-    return new \HotRadar\Model\NormalizedProduct(
-        marketplace: (string) $row['marketplace'],
-        marketplaceProductId: (string) $row['marketplace_product_id'],
-        title: (string) $row['title'],
-        urlOriginal: (string) $row['url_original'],
-        shopId: $row['shop_id'] !== null ? (string) $row['shop_id'] : null,
-        category: $row['category'] !== null ? (string) $row['category'] : null,
-        subcategory: $row['subcategory'] !== null ? (string) $row['subcategory'] : null,
-        urlAffiliate: $row['url_affiliate'] !== null ? (string) $row['url_affiliate'] : null,
-        imageUrl: $row['image_url'] !== null ? (string) $row['image_url'] : null,
-        priceCurrent: $row['price_current'] !== null ? (float) $row['price_current'] : null,
-        pricePrevious: $row['price_previous'] !== null ? (float) $row['price_previous'] : null,
-        discountPct: $row['discount_pct'] !== null ? (int) $row['discount_pct'] : null,
-        salesSignal: $row['sales_signal'] !== null ? (string) $row['sales_signal'] : null,
-        salesExact: $row['sales_exact'] !== null ? (int) $row['sales_exact'] : null,
-        rating: $row['rating'] !== null ? (float) $row['rating'] : null,
-        ratingCount: $row['rating_count'] !== null ? (int) $row['rating_count'] : null,
-        rankPosition: $row['rank_position'] !== null ? (int) $row['rank_position'] : null,
-        specialSignals: is_array($signals) ? $signals : [],
-        hasVideo: (bool) $row['has_video'],
-        commissionPct: $row['commission_pct'] !== null ? (float) $row['commission_pct'] : null,
-        commissionEstimated: $row['commission_estimated'] !== null ? (float) $row['commission_estimated'] : null,
-        campaign: $row['campaign'] !== null ? (string) $row['campaign'] : null,
-        marketplaceExtra: is_array($extra) ? $extra : [],
-        dataQuality: (string) $row['data_quality'],
-        source: (string) $row['source'],
-        nicheConfidence: is_array($extra) ? ($extra['niche_confidence'] ?? null) : null,
-    );
 }
 
 function printStats(App $app): void

@@ -27,6 +27,7 @@ $discovery = new DiscoveryService(
     new SnapshotRepository($db),
     new RunRepository($db),
     new HotScore(HotScoreConfig::load(require HR_ROOT . '/config/hotscore.php')),
+    new HotRadar\Repository\ProductRadarRepository($db),
 );
 
 /** Collector falso que devolve o que mandarmos. */

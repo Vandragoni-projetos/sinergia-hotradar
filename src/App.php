@@ -10,9 +10,18 @@ use HotRadar\Collector\Shopee\ShopeeCollector;
 use HotRadar\Db\Connection;
 use HotRadar\Db\Migrator;
 use HotRadar\Discovery\DiscoveryService;
+use HotRadar\Integration\OpenAi\OpenAiClient;
+use HotRadar\Integration\OpenAi\OpenAiConfig;
+use HotRadar\Integration\ShopeeStatus;
+use HotRadar\Radar\RadarRepository;
+use HotRadar\Report\AiReportService;
+use HotRadar\Report\ReportService;
+use HotRadar\Repository\AuditRepository;
 use HotRadar\Repository\EditorialRepository;
+use HotRadar\Repository\ProductRadarRepository;
 use HotRadar\Repository\ProductRepository;
 use HotRadar\Repository\RunRepository;
+use HotRadar\Repository\SettingsRepository;
 use HotRadar\Repository\SnapshotRepository;
 use HotRadar\Score\HotScore;
 use HotRadar\Score\HotScoreConfig;
@@ -51,6 +60,11 @@ final class App
         return new SnapshotRepository($this->db);
     }
 
+    public function productRadars(): ProductRadarRepository
+    {
+        return new ProductRadarRepository($this->db);
+    }
+
     public function runs(): RunRepository
     {
         return new RunRepository($this->db);
@@ -59,6 +73,21 @@ final class App
     public function editorial(): EditorialRepository
     {
         return new EditorialRepository($this->db);
+    }
+
+    public function audit(): AuditRepository
+    {
+        return new AuditRepository($this->db);
+    }
+
+    public function settings(): SettingsRepository
+    {
+        return new SettingsRepository($this->db, $this->audit());
+    }
+
+    public function radars(): RadarRepository
+    {
+        return new RadarRepository($this->db, $this->audit());
     }
 
     public function hotScoreConfig(): HotScoreConfig
@@ -73,7 +102,38 @@ final class App
 
     public function discovery(): DiscoveryService
     {
-        return new DiscoveryService($this->products(), $this->snapshots(), $this->runs(), $this->hotScore());
+        return new DiscoveryService(
+            $this->products(),
+            $this->snapshots(),
+            $this->runs(),
+            $this->hotScore(),
+            $this->productRadars(),
+        );
+    }
+
+    public function shopeeStatus(): ShopeeStatus
+    {
+        return new ShopeeStatus($this->settings());
+    }
+
+    public function openAiConfig(): OpenAiConfig
+    {
+        return new OpenAiConfig();
+    }
+
+    public function openAiClient(): OpenAiClient
+    {
+        return new OpenAiClient($this->openAiConfig());
+    }
+
+    public function reports(): ReportService
+    {
+        return new ReportService($this->db);
+    }
+
+    public function aiReports(): AiReportService
+    {
+        return new AiReportService($this->reports(), $this->openAiClient());
     }
 
     private function mlHttp(): Http
@@ -89,7 +149,7 @@ final class App
             $this->mlHttp(),
             new OfertasJsonParser(),
             (int) $ml['request_delay_ms'],
-            (array) $ml['target_categories'],
+            (array) ($ml['target_categories'] ?? []),
             HR_ROOT . '/storage/collect',
         );
     }
@@ -101,7 +161,7 @@ final class App
             (string) $sh['app_id'],
             (string) $sh['secret'],
             (string) $sh['graphql_url'],
-            (bool) $sh['enabled'],
+            $this->shopeeStatus(),
         );
     }
 

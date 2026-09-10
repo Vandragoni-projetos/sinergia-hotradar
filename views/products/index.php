@@ -5,11 +5,13 @@ use HotRadar\Editorial\EditorialStatus;
  * @var array<int,array<string,mixed>> $rows
  * @var array<string,mixed> $filters
  * @var array<int,string> $categories
+ * @var array<int,\HotRadar\Radar\Radar> $radars
+ * @var array<int,array<int,string>> $radar_slugs_by_product  product_id => [slug,...]
  * @var int $total
  */
 $qs = static function (array $over) use ($filters): string {
     $base = array_filter([
-        'marketplace' => $filters['marketplace'], 'faixa' => $filters['faixa'],
+        'radar' => $filters['radar'], 'marketplace' => $filters['marketplace'], 'faixa' => $filters['faixa'],
         'status' => $filters['status'], 'category' => $filters['category'],
         'has_video' => $filters['has_video'], 'min_discount' => $filters['min_discount'],
         'min_rating' => $filters['min_rating'], 'q' => $filters['q'],
@@ -20,6 +22,12 @@ $cur = static fn (string $k, string $v): string => ($filters[$k] ?? '') === $v ?
 ?>
 <h1>Curadoria <span class="muted" style="font-size:14px">— <?= $total ?> produto(s)</span></h1>
 
+<div class="pills" style="margin-bottom:10px">
+  <a class="<?= $cur('radar','') ?>" href="<?= $qs(['radar'=>'']) ?>">TODOS OS RADARES</a>
+  <?php foreach ($radars as $rd): ?>
+    <a class="<?= $cur('radar',$rd->slug) ?>" href="<?= $qs(['radar'=>$rd->slug]) ?>"><?= View::e($rd->name) ?></a>
+  <?php endforeach; ?>
+</div>
 <div class="pills" style="margin-bottom:10px">
   <a class="<?= $cur('marketplace','') ?>" href="<?= $qs(['marketplace'=>'']) ?>">TODOS</a>
   <a class="<?= $cur('marketplace','mercado_livre') ?>" href="<?= $qs(['marketplace'=>'mercado_livre']) ?>">MERCADO LIVRE</a>
@@ -35,6 +43,7 @@ $cur = static fn (string $k, string $v): string => ($filters[$k] ?? '') === $v ?
 
 <form class="filters" method="get">
   <input type="hidden" name="r" value="products">
+  <input type="hidden" name="radar" value="<?= View::e($filters['radar']) ?>">
   <div class="f"><label>Nicho/categoria</label>
     <select name="category">
       <option value="">todos</option>
@@ -82,6 +91,9 @@ $cur = static fn (string $k, string $v): string => ($filters[$k] ?? '') === $v ?
     <div class="body">
       <div class="meta">
         <span class="badge mp"><?= View::e(View::marketplaceLabel((string) $p['marketplace'])) ?></span>
+        <?php foreach (($radar_slugs_by_product[$p['id']] ?? []) as $rs): ?>
+          <span class="badge q" title="radar associado">📡 <?= View::e($rs) ?></span>
+        <?php endforeach; ?>
         <?php if ($p['category']): ?><span class="badge q"><?= View::e($p['category']) ?></span><?php endif; ?>
         <span class="badge q" title="qualidade do dado"><?= View::e($p['data_quality']) ?></span>
       </div>

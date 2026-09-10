@@ -33,10 +33,15 @@ final class OfertasJsonParser
     public function parse(string $html, string $sourceCategoryId, string $sourceCategoryLabel): array
     {
         $json = self::extractCtxJson($html);
-        if ($json === null) {
-            return ['ok' => false, 'items' => [], 'cards' => 0, 'reason' => 'JSON _n.ctx.r ausente (estrutura da página mudou ou bloqueio)'];
+        if ($json !== null) {
+            $viaJson = $this->parseDecoded($json, $sourceCategoryId, $sourceCategoryLabel);
+            if ($viaJson['ok']) {
+                return $viaJson;
+            }
         }
-        return $this->parseDecoded($json, $sourceCategoryId, $sourceCategoryLabel);
+        // Fallback: a página às vezes vem só com HTML SSR (sem o JSON rico), tipicamente
+        // sob rate-limit. Ainda dá para extrair o essencial dos cards .poly-card.
+        return $this->parseHtmlFallback($html, $sourceCategoryId, $sourceCategoryLabel);
     }
 
     /**
@@ -183,6 +188,118 @@ final class OfertasJsonParser
             source: 'ofertas_ml',
             nicheConfidence: $n['confidence'],
         );
+    }
+
+    /**
+     * Parser HTML puro (fallback). Cards .poly-card → título, url, preço, imagem.
+     * Sem tags/vídeo/rank/vendas (só o JSON rico tem isso) → data_quality = 'scrape_html'.
+     * @return array{ok:bool, items:array<int,NormalizedProduct>, cards:int, reason:?string}
+     */
+    public function parseHtmlFallback(string $html, string $catId, string $catLabel): array
+    {
+        if (stripos($html, 'poly-card') === false) {
+            return [
+                'ok' => false,
+                'items' => [],
+                'cards' => 0,
+                'reason' => 'página sem JSON e sem cards .poly-card — provável bloqueio/rate-limit do ML',
+            ];
+        }
+
+        $dom = new \DOMDocument();
+        $prev = libxml_use_internal_errors(true);
+        $dom->loadHTML('<?xml encoding="UTF-8">' . $html);
+        libxml_use_internal_errors($prev);
+        $xp = new \DOMXPath($dom);
+
+        $cards = $xp->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' poly-card__content ')]");
+        $out = [];
+        $seen = [];
+        $n = 0;
+        foreach ($cards as $content) {
+            $n++;
+            $a = $xp->query(".//h3//a | .//a[.//h3] | .//a[contains(@class,'poly-component__title')]", $content)->item(0);
+            if (!$a instanceof \DOMElement) {
+                continue;
+            }
+            $title = trim($a->textContent);
+            $href = $this->absoluteUrl(trim((string) $a->getAttribute('href')));
+            if ($title === '' || $href === '') {
+                continue;
+            }
+            $ids = [];
+            if (preg_match_all('#(MLB[U]?-?\d{6,})#i', $href, $m)) {
+                foreach ($m[1] as $x) {
+                    $ids[] = strtoupper(str_replace('-', '', $x));
+                }
+            }
+            $stableId = $ids[0] ?? ('HREF:' . md5($href));
+            if (isset($seen[$stableId])) {
+                continue;
+            }
+            $seen[$stableId] = true;
+
+            // preço: primeiro .andes-money-amount__fraction dentro do card (ignora "de/riscado")
+            $priceCurrent = null;
+            $pricePrev = null;
+            $fr = $xp->query(".//*[contains(concat(' ', normalize-space(@class), ' '), ' andes-money-amount__fraction ')]", $content);
+            $vals = [];
+            foreach ($fr as $node) {
+                $digits = preg_replace('/\D+/', '', $node->textContent);
+                if ($digits !== '') {
+                    $vals[] = (float) $digits;
+                }
+            }
+            if ($vals !== []) {
+                $priceCurrent = min($vals);
+                if (count($vals) > 1) {
+                    $pricePrev = max($vals) > $priceCurrent ? max($vals) : null;
+                }
+            }
+            $discount = null;
+            $pill = $xp->query(".//*[contains(@class,'discount') or contains(@class,'poly-price__disc')]", $content)->item(0);
+            if ($pill && preg_match('/(\d{1,3})\s*%/', $pill->textContent, $mm)) {
+                $discount = (int) $mm[1];
+            } elseif ($pricePrev !== null && $priceCurrent !== null && $pricePrev > 0) {
+                $discount = (int) round(($pricePrev - $priceCurrent) / $pricePrev * 100);
+            }
+
+            $img = null;
+            $imgNode = $xp->query(".//img", $content)->item(0);
+            if ($imgNode instanceof \DOMElement) {
+                $img = trim((string) ($imgNode->getAttribute('data-src') ?: $imgNode->getAttribute('src')));
+                $img = ($img && !str_starts_with($img, 'data:')) ? $img : null;
+            }
+
+            $niche = $this->niche->classify($title, $catLabel);
+
+            $out[] = new NormalizedProduct(
+                marketplace: 'mercado_livre',
+                marketplaceProductId: $stableId,
+                title: $title,
+                urlOriginal: $href,
+                category: $niche['slug'] ?? $this->slugFromLabel($catLabel),
+                imageUrl: $img,
+                priceCurrent: $priceCurrent,
+                pricePrevious: $pricePrev,
+                discountPct: $discount,
+                dataQuality: 'scrape_html',
+                source: 'ofertas_ml',
+                marketplaceExtra: [
+                    'source_category_id' => $catId,
+                    'source_category_label' => $catLabel,
+                    'niche_slug' => $niche['slug'],
+                    'niche_confidence' => $niche['confidence'],
+                    'parser' => 'html_fallback',
+                ],
+                nicheConfidence: $niche['confidence'],
+            );
+        }
+
+        if ($out === []) {
+            return ['ok' => false, 'items' => [], 'cards' => $n, 'reason' => 'HTML fallback não extraiu nenhum card válido'];
+        }
+        return ['ok' => true, 'items' => $out, 'cards' => $n, 'reason' => 'html_fallback (dados reduzidos — sem vídeo/rank/vendas)'];
     }
 
     // --------------------------------------------------------------- componentes
@@ -355,8 +472,13 @@ final class OfertasJsonParser
         if ($label === null || $label === '') {
             return null;
         }
-        $s = iconv('UTF-8', 'ASCII//TRANSLIT', mb_strtolower($label, 'UTF-8'));
-        $s = preg_replace('/[^a-z0-9]+/', '_', (string) $s) ?? '';
+        $s = strtr(mb_strtolower($label, 'UTF-8'), [
+            'á' => 'a', 'à' => 'a', 'â' => 'a', 'ã' => 'a', 'ä' => 'a',
+            'é' => 'e', 'è' => 'e', 'ê' => 'e', 'í' => 'i', 'î' => 'i',
+            'ó' => 'o', 'ò' => 'o', 'ô' => 'o', 'õ' => 'o', 'ö' => 'o',
+            'ú' => 'u', 'û' => 'u', 'ü' => 'u', 'ç' => 'c', 'ñ' => 'n',
+        ]);
+        $s = preg_replace('/[^a-z0-9]+/', '_', $s) ?? '';
         return trim($s, '_') ?: null;
     }
 

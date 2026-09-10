@@ -4,6 +4,9 @@ use HotRadar\Web\View;
 $nav = [
     'dashboard' => ['?r=dashboard', 'Dashboard'],
     'products' => ['?r=products', 'Curadoria'],
+    'radars' => ['?r=radars', 'Radares'],
+    'reports' => ['?r=reports', 'Relatórios'],
+    'config' => ['?r=config', 'Configurações'],
 ];
 ?><!doctype html>
 <html lang="pt-br">
