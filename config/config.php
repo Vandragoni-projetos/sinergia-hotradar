@@ -57,7 +57,10 @@ return [
 
     'panel' => [
         'user' => Env::get('HR_PANEL_USER', 'admin'),
-        'password' => Env::get('HR_PANEL_PASSWORD', 'hotradar'),
+        // hash bcrypt (preferido) OU senha em texto (fallback de compatibilidade).
+        // Só por Environment. Vazios os dois = autenticação desligada (uso local).
+        'password_hash' => Env::get('HR_PANEL_PASSWORD_HASH', ''),
+        'password' => Env::get('HR_PANEL_PASSWORD', ''),
     ],
 
     'affiliate' => [

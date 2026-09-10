@@ -12,9 +12,10 @@ use HotRadar\Score\HotScoreConfig;
  * @var array<int,array<string,mixed>> $audit
  * @var int $radars_count
  */
+$sub = ['ml' => 'marketplaces', 'shopee' => 'marketplaces', 'openai' => 'ia', 'hotscore' => 'avancado'][$sub] ?? $sub;
 $tabs = [
-    'geral' => 'Geral', 'ml' => 'Mercado Livre', 'shopee' => 'Shopee',
-    'openai' => 'OpenAI', 'hotscore' => 'Hot Score',
+    'geral' => 'Geral', 'marketplaces' => 'Marketplaces', 'ia' => 'Inteligência Artificial',
+    'seguranca' => 'Segurança', 'avancado' => 'Avançado',
 ];
 $badge = static fn (bool $ok, string $y, string $n) =>
     '<span class="badge" style="' . ($ok ? 'background:var(--ok);color:#fff;border-color:transparent' : '') . '">' . ($ok ? $y : $n) . '</span>';
@@ -27,7 +28,7 @@ $badge = static fn (bool $ok, string $y, string $n) =>
 </div>
 
 <?php if ($sub === 'geral'): ?>
-  <form method="post" action="?r=settings.general" class="panel" style="max-width:720px">
+  <form method="post" action="?r=settings.general" class="panel" style="max-width:720px"><?= \HotRadar\Web\View::csrf() ?>
     <h2 style="margin-top:0">Geral</h2>
     <div class="f" style="margin-bottom:12px"><label>Timezone</label>
       <input type="text" name="timezone" value="<?= View::e($general['timezone'] ?? $general_defaults['timezone']) ?>" style="width:280px"></div>
@@ -44,36 +45,22 @@ $badge = static fn (bool $ok, string $y, string $n) =>
     <button class="primary" type="submit">Salvar</button>
   </form>
 
-<?php elseif ($sub === 'ml'): ?>
+<?php elseif ($sub === 'marketplaces'): ?>
   <div class="panel" style="max-width:720px">
     <h2 style="margin-top:0">Mercado Livre</h2>
-    <p><strong>Mercado Livre — ATIVO / coletor público.</strong> Usa a página pública <code>/ofertas</code>; <strong>não depende de API key</strong>.</p>
-    <div class="kv" style="font-size:13px">
-      <div>Modo</div><div>coletor público (scraping do JSON estruturado de <code>/ofertas</code>)</div>
-      <div>Timeout HTTP</div><div><?= (int) $ml['http_timeout'] ?>s</div>
-      <div>Pausa entre requisições</div><div><?= (int) $ml['request_delay_ms'] ?> ms</div>
-      <div>User-Agent</div><div class="muted" style="font-size:11px"><?= View::e($ml['user_agent']) ?></div>
-    </div>
-    <hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
-    <h3 style="margin:0 0 6px">API oficial do Mercado Livre (futuro)</h3>
-    <div class="kv" style="font-size:13px">
-      <div>Status</div><div><?= $badge(false, '', 'Não configurada') ?> <span class="muted">— opcional; o coletor atual não precisa</span></div>
-      <div>Variáveis previstas</div><div><code>ML_API_CLIENT_ID</code>, <code>ML_API_CLIENT_SECRET</code> (Environment) — <strong>não</strong> obrigatórias nesta fase</div>
-    </div>
-    <p class="muted" style="font-size:12px">Nada de bypass de anti-bot, PDP bloqueada ou Link Builder automático nesta fase.</p>
+    <p><strong>Funcionando.</strong> O HotRadar coleta produtos das ofertas públicas do Mercado Livre.
+      <strong>Não precisa de chave, conta de API ou serviço pago.</strong></p>
+    <p class="muted" style="font-size:12px">Uma futura integração com a API oficial do Mercado Livre é opcional e não muda nada do que já funciona.</p>
   </div>
 
-<?php elseif ($sub === 'shopee'): ?>
-  <div class="panel" style="max-width:720px">
+  <div class="panel" style="max-width:720px;margin-top:14px">
     <h2 style="margin-top:0">Shopee</h2>
-    <p>Estado atual: <strong><?= View::e($shopee_label) ?></strong></p>
-    <div class="kv" style="font-size:13px">
-      <div><code>SHOPEE_APP_ID</code> (Environment)</div><div><?= $badge($shopee_appid_present, 'presente', 'ausente') ?></div>
-      <div><code>SHOPEE_SECRET</code> (Environment)</div><div><?= $badge($shopee_secret_present, 'presente', 'ausente') ?></div>
-      <div>Valor do segredo</div><div class="muted">nunca exibido — fica só no EasyPanel Environment</div>
-    </div>
+    <p>Situação: <strong><?= $shopee_appid_present && $shopee_secret_present ? 'Configurado' : 'Não configurado' ?></strong>
+      <?= $shopee_state === 'aguardando_open_api' ? ' <span class="muted">— aguardando liberação de acesso pela Shopee</span>' : '' ?></p>
+    <p class="muted" style="font-size:13px">As credenciais da Shopee são definidas apenas no servidor (Environment), nunca aqui.
+      O valor nunca é exibido. Sem credenciais, a Shopee fica desligada e nenhuma chamada é feita.</p>
     <hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
-    <form method="post" action="?r=settings.shopee">
+    <form method="post" action="?r=settings.shopee"><?= \HotRadar\Web\View::csrf() ?>
       <label style="display:flex;gap:8px;align-items:start">
         <input type="checkbox" name="open_api_access" value="granted" <?= $shopee_granted ? 'checked' : '' ?> <?= (!$shopee_appid_present || !$shopee_secret_present) ? 'disabled' : '' ?>>
         <span>Acesso à Open API <strong>concedido</strong> pela Shopee para esta conta.<br>
@@ -81,27 +68,44 @@ $badge = static fn (bool $ok, string $y, string $n) =>
       </label>
       <button class="primary" type="submit" style="margin-top:12px" <?= (!$shopee_appid_present || !$shopee_secret_present) ? 'disabled' : '' ?>>Salvar status</button>
     </form>
-    <p class="muted" style="font-size:12px;margin-bottom:0">O adapter <code>ProductOfferV2Mapper</code> já está pronto; ligar = credenciais no Environment + acesso concedido acima.</p>
+    <p class="muted" style="font-size:12px;margin-bottom:0">Quando a Shopee liberar o acesso, é só informar as credenciais no servidor e marcar acima — nada precisa ser reconstruído.</p>
   </div>
 
-<?php elseif ($sub === 'openai'): ?>
+<?php elseif ($sub === 'ia'): ?>
   <div class="panel" style="max-width:720px">
-    <h2 style="margin-top:0">OpenAI</h2>
-    <p>Status: <strong><?= View::e($openai_status) ?></strong></p>
-    <div class="kv" style="font-size:13px">
-      <div><code>OPENAI_API_KEY</code> (Environment)</div><div><?= $badge($openai_configured, 'presente', 'ausente') ?></div>
-      <div><code>OPENAI_MODEL</code></div><div><?= View::e($openai_model) ?> <span class="muted">(default se não definido)</span></div>
-      <div>Valor da chave</div><div class="muted">nunca exibido, nunca gravado em banco/Git/log</div>
-      <div>Uso nesta fase</div><div><strong>somente</strong> resumos de relatório (Relatórios → “Gerar análise inteligente”)</div>
-      <div>Efeito no HOT SCORE</div><div>nenhum — o HOT SCORE é 100% determinístico (<code>HotScore</code>/<code>HotScoreConfig</code>)</div>
-    </div>
+    <h2 style="margin-top:0">Inteligência Artificial (opcional)</h2>
+    <p>Situação: <strong><?= $openai_configured ? 'Configurada' : 'Não configurada' ?></strong>
+      <?= $openai_configured ? ' <span class="muted">· modelo ' . View::e($openai_model) . '</span>' : '' ?></p>
+    <p>O HotRadar funciona <strong>100% sem inteligência artificial</strong>: coleta, Hot Score, curadoria, relatórios,
+      exportação, análise por URL, fichas e PDF não dependem de IA.</p>
+    <p class="muted" style="font-size:13px">Quando configurada, a IA é usada <strong>apenas</strong> para escrever um resumo em linguagem natural
+      dos relatórios. Ela <strong>nunca</strong> altera ou inventa números — o Hot Score e todos os dados continuam
+      calculados de forma fixa. A chave é definida só no servidor e nunca é exibida.</p>
+    <?php if (!$openai_configured): ?>
+      <p class="muted" style="font-size:12px">Para ativar: defina a variável <code>OPENAI_API_KEY</code> no servidor. Nenhum custo é gerado sem você clicar em "Gerar análise inteligente".</p>
+    <?php endif; ?>
   </div>
 
-<?php elseif ($sub === 'hotscore'): ?>
+<?php elseif ($sub === 'seguranca'): ?>
+  <div class="panel" style="max-width:720px">
+    <h2 style="margin-top:0">Acesso ao painel</h2>
+    <p>Login: <strong><?= $auth_required ? 'ativado' : 'desativado (uso local)' ?></strong>
+      <?= $auth_required ? ($auth_hash_set ? ' <span class="muted">· senha protegida por hash</span>' : ' <span class="muted">· senha em texto (recomenda-se usar hash)</span>') : '' ?></p>
+    <p class="muted" style="font-size:13px">As credenciais ficam apenas no servidor (Environment), nunca no código nem aqui.
+      Variáveis: <code>HR_PANEL_USER</code>, <code>HR_PANEL_PASSWORD_HASH</code> (recomendado) ou <code>HR_PANEL_PASSWORD</code>.</p>
+    <p class="muted" style="font-size:12px">Gerar um hash de senha:
+      <code>php -r "echo password_hash('SUA_SENHA', PASSWORD_BCRYPT);"</code></p>
+    <hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+    <h3 style="margin:0 0 6px">Repositório de código</h3>
+    <p class="muted" style="font-size:13px">Nenhuma senha, chave ou segredo é gravado no código, no histórico do Git, em logs ou na tela.
+      Tudo isso vive só nas variáveis de ambiente do servidor.</p>
+  </div>
+
+<?php elseif ($sub === 'avancado'): ?>
   <div class="panel" style="max-width:820px">
     <h2 style="margin-top:0">HOT SCORE — pesos e faixas</h2>
     <p class="muted" style="font-size:12px">Fonte de verdade ativa: <strong><?= View::e($hs_source) ?></strong> · versão <?= View::e($hs_config->version()) ?> · soma dos máximos: <strong><?= $hs_config->totalMax() ?></strong> (ideal 100).</p>
-    <form method="post" action="?r=hotscore.save">
+    <form method="post" action="?r=hotscore.save"><?= \HotRadar\Web\View::csrf() ?>
       <table>
         <tr><th>Componente</th><th>Regra</th><th>Peso máx. (padrão)</th><th style="width:120px">Peso atual</th></tr>
         <?php foreach ($hs_config->blocks() as $key => $blk):

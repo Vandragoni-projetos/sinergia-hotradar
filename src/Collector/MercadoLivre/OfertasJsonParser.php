@@ -483,6 +483,22 @@ final class OfertasJsonParser
     }
 
     /**
+     * IDs de produto do Mercado Livre (MLB… / MLBU…) presentes numa URL.
+     * Aceita /p/MLB123, /MLB-123, produto.mercadolivre.com.br/MLB-123, ?wid=MLB123 etc.
+     * @return array<int,string>
+     */
+    public static function extractMlbIds(string $url): array
+    {
+        $ids = [];
+        if (preg_match_all('#(MLB[U]?)-?(\d{6,})#i', $url, $m, PREG_SET_ORDER)) {
+            foreach ($m as $mm) {
+                $ids[] = strtoupper($mm[1] . $mm[2]);
+            }
+        }
+        return array_values(array_unique($ids));
+    }
+
+    /**
      * Extrai o objeto JSON após `_n.ctx.r=` com varredura de chaves respeitando strings.
      * @return array<string,mixed>|null
      */

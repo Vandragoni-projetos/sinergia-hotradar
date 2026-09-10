@@ -88,6 +88,32 @@ final class Connection
         return $this->pdo->lastInsertId();
     }
 
+    /**
+     * Executa $fn dentro de uma transação. Commit no sucesso, rollback em exceção.
+     * @template T
+     * @param callable():T $fn
+     * @return T
+     */
+    public function transaction(callable $fn): mixed
+    {
+        $ownsTx = !$this->pdo->inTransaction();
+        if ($ownsTx) {
+            $this->pdo->beginTransaction();
+        }
+        try {
+            $result = $fn();
+            if ($ownsTx) {
+                $this->pdo->commit();
+            }
+            return $result;
+        } catch (\Throwable $e) {
+            if ($ownsTx && $this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            throw $e;
+        }
+    }
+
     public function now(): string
     {
         return date('Y-m-d H:i:s');

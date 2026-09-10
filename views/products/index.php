@@ -6,8 +6,10 @@ use HotRadar\Editorial\EditorialStatus;
  * @var array<string,mixed> $filters
  * @var array<int,string> $categories
  * @var array<int,\HotRadar\Radar\Radar> $radars
- * @var array<int,array<int,string>> $radar_slugs_by_product  product_id => [slug,...]
+ * @var array<int,array<int,string>> $radar_slugs_by_product
+ * @var array<string,string> $radar_names
  * @var int $total
+ * @var string $query_string
  */
 $qs = static function (array $over) use ($filters): string {
     $base = array_filter([
@@ -19,32 +21,36 @@ $qs = static function (array $over) use ($filters): string {
     return '?r=products&' . http_build_query(array_merge($base, $over));
 };
 $cur = static fn (string $k, string $v): string => ($filters[$k] ?? '') === $v ? 'on' : '';
+$exportQs = $query_string !== '' ? ('&' . $query_string) : '';
+$radarQs = $filters['radar'] ? '&radar=' . rawurlencode((string) $filters['radar']) : '';
 ?>
 <h1>Curadoria <span class="muted" style="font-size:14px">— <?= $total ?> produto(s)</span></h1>
 
 <div class="pills" style="margin-bottom:10px">
-  <a class="<?= $cur('radar','') ?>" href="<?= $qs(['radar'=>'']) ?>">TODOS OS RADARES</a>
+  <a class="<?= $cur('radar','') ?>" href="<?= $qs(['radar'=>'']) ?>">Todos os radares</a>
   <?php foreach ($radars as $rd): ?>
     <a class="<?= $cur('radar',$rd->slug) ?>" href="<?= $qs(['radar'=>$rd->slug]) ?>"><?= View::e($rd->name) ?></a>
   <?php endforeach; ?>
 </div>
-<div class="pills" style="margin-bottom:10px">
-  <a class="<?= $cur('marketplace','') ?>" href="<?= $qs(['marketplace'=>'']) ?>">TODOS</a>
-  <a class="<?= $cur('marketplace','mercado_livre') ?>" href="<?= $qs(['marketplace'=>'mercado_livre']) ?>">MERCADO LIVRE</a>
-  <a class="<?= $cur('marketplace','shopee') ?>" href="<?= $qs(['marketplace'=>'shopee']) ?>">SHOPEE</a>
-</div>
 <div class="pills" style="margin-bottom:16px">
-  <a class="<?= $cur('faixa','') ?>" href="<?= $qs(['faixa'=>'']) ?>">TODOS</a>
-  <a class="<?= $cur('faixa','muito_quente') ?>" href="<?= $qs(['faixa'=>'muito_quente']) ?>">🔥 MUITO QUENTE</a>
-  <a class="<?= $cur('faixa','bom') ?>" href="<?= $qs(['faixa'=>'bom']) ?>">🟠 BOM</a>
-  <a class="<?= $cur('faixa','analisar') ?>" href="<?= $qs(['faixa'=>'analisar']) ?>">🟡 ANALISAR</a>
-  <a class="<?= $cur('faixa','baixo') ?>" href="<?= $qs(['faixa'=>'baixo']) ?>">⚪ BAIXO</a>
+  <a class="<?= $cur('faixa','') ?>" href="<?= $qs(['faixa'=>'']) ?>">Todas as classificações</a>
+  <a class="<?= $cur('faixa','muito_quente') ?>" href="<?= $qs(['faixa'=>'muito_quente']) ?>">🔥 Muito quente</a>
+  <a class="<?= $cur('faixa','bom') ?>" href="<?= $qs(['faixa'=>'bom']) ?>">🟠 Bom candidato</a>
+  <a class="<?= $cur('faixa','analisar') ?>" href="<?= $qs(['faixa'=>'analisar']) ?>">🟡 Analisar</a>
+  <a class="<?= $cur('faixa','baixo') ?>" href="<?= $qs(['faixa'=>'baixo']) ?>">⚪ Baixa prioridade</a>
 </div>
 
 <form class="filters" method="get">
   <input type="hidden" name="r" value="products">
   <input type="hidden" name="radar" value="<?= View::e($filters['radar']) ?>">
-  <div class="f"><label>Nicho/categoria</label>
+  <div class="f"><label>Marketplace</label>
+    <select name="marketplace">
+      <option value="">todos</option>
+      <option value="mercado_livre" <?= $filters['marketplace']==='mercado_livre'?'selected':'' ?>>Mercado Livre</option>
+      <option value="shopee" <?= $filters['marketplace']==='shopee'?'selected':'' ?>>Shopee</option>
+    </select>
+  </div>
+  <div class="f"><label>Nicho</label>
     <select name="category">
       <option value="">todos</option>
       <?php foreach ($categories as $c): ?>
@@ -59,9 +65,9 @@ $cur = static fn (string $k, string $v): string => ($filters[$k] ?? '') === $v ?
       <option value="0" <?= $filters['has_video']==='0'?'selected':'' ?>>só sem vídeo</option>
     </select>
   </div>
-  <div class="f"><label>Desconto mín. %</label><input type="number" name="min_discount" value="<?= View::e($filters['min_discount']) ?>" style="width:90px"></div>
-  <div class="f"><label>Avaliação mín.</label><input type="number" step="0.1" name="min_rating" value="<?= View::e($filters['min_rating']) ?>" style="width:90px"></div>
-  <div class="f"><label>Status editorial</label>
+  <div class="f"><label>Desconto mín. %</label><input type="number" name="min_discount" value="<?= View::e($filters['min_discount']) ?>" style="width:80px"></div>
+  <div class="f"><label>Avaliação mín.</label><input type="number" step="0.1" name="min_rating" value="<?= View::e($filters['min_rating']) ?>" style="width:80px"></div>
+  <div class="f"><label>Status</label>
     <select name="status">
       <option value="">todos</option>
       <?php foreach (EditorialStatus::active() as $s): ?>
@@ -70,32 +76,51 @@ $cur = static fn (string $k, string $v): string => ($filters[$k] ?? '') === $v ?
     </select>
   </div>
   <div class="f"><label>Descoberto desde</label><input type="date" name="discovered_since" value="<?= View::e($filters['discovered_since']) ?>"></div>
-  <div class="f"><label>Busca</label><input type="text" name="q" value="<?= View::e($filters['q']) ?>" placeholder="título…"></div>
+  <div class="f"><label>Busca</label><input type="text" name="q" value="<?= View::e($filters['q']) ?>" placeholder="nome do produto…"></div>
   <button class="primary" type="submit">Filtrar</button>
-  <a class="ghost" href="?r=products" style="padding:7px 9px;border:1px solid var(--border);border-radius:7px">limpar</a>
+  <a class="btn" href="?r=products<?= $radarQs ?>">limpar</a>
 </form>
 
-<div class="cards">
+<div class="toolbar">
+  <span class="muted"><?= $total ?> produto(s) neste filtro</span>
+  <div class="spacer"></div>
+  <a class="btn" href="?r=export.products<?= $exportQs ?>">⬇ Exportar CSV</a>
+  <a class="btn" href="?r=export.products&aprovados=1<?= $radarQs ?>">⬇ CSV só aprovados</a>
+  <a class="btn" href="?r=print.pack<?= $radarQs ?>&auto=1" target="_blank">📄 Pack PDF (deste filtro)</a>
+</div>
+
+<div class="bulkbar" id="bulkbar" hidden>
+  <span class="count"><span id="bulkn">0</span> selecionado(s)</span>
+  <form method="post" action="?r=product.bulk" id="bulkform">
+    <?= View::csrf() ?>
+    <input type="hidden" name="back" value="<?= View::e($qs([])) ?>">
+    <span id="bulkids"></span>
+    <button class="btn" name="to" value="aprovado" type="submit">Aprovar selecionados</button>
+    <button class="btn" name="to" value="analisar" type="submit">Marcar para analisar</button>
+    <button class="btn" name="to" value="descartado" type="submit"
+      onclick="var r=prompt('Motivo do descarte (opcional):');if(r===null)return false;document.getElementById('bulkreason').value=r;">Descartar selecionados</button>
+    <input type="hidden" name="reason" id="bulkreason" value="">
+  </form>
+  <a href="#" onclick="clearSel();return false" class="muted" style="font-size:12px">limpar seleção</a>
+  <label style="font-size:12px;margin-left:8px"><input type="checkbox" id="selall"> selecionar todos da página</label>
+</div>
+
+<div class="cards" id="cards">
   <?php foreach ($rows as $p):
     $back = View::e($qs([]));
-    $signals = json_decode((string) ($p['special_signals'] ?? '[]'), true) ?: [];
+    $radNames = array_map(static fn ($s) => $radar_names[$s] ?? $s, $radar_slugs_by_product[$p['id']] ?? []);
   ?>
   <div class="card pcard">
+    <input type="checkbox" class="pick" value="<?= (int) $p['id'] ?>" onchange="onPick()" title="selecionar">
     <div class="thumb">
-      <span class="sc"><?php
-        echo match ($p['hot_faixa']) {'muito_quente'=>'🔥','bom'=>'🟠','analisar'=>'🟡',default=>'⚪'};
-        echo ' ' . (int) $p['hot_score']; ?></span>
+      <span class="sc"><?= View::faixaEmoji($p['hot_faixa']) ?> <?= (int) $p['hot_score'] ?></span>
       <?php if ($p['has_video']): ?><span class="vid">🎬 vídeo</span><?php endif; ?>
       <?php if ($p['image_url']): ?><img loading="lazy" src="<?= View::e($p['image_url']) ?>" alt=""><?php endif; ?>
     </div>
     <div class="body">
       <div class="meta">
         <span class="badge mp"><?= View::e(View::marketplaceLabel((string) $p['marketplace'])) ?></span>
-        <?php foreach (($radar_slugs_by_product[$p['id']] ?? []) as $rs): ?>
-          <span class="badge q" title="radar associado">📡 <?= View::e($rs) ?></span>
-        <?php endforeach; ?>
-        <?php if ($p['category']): ?><span class="badge q"><?= View::e($p['category']) ?></span><?php endif; ?>
-        <span class="badge q" title="qualidade do dado"><?= View::e($p['data_quality']) ?></span>
+        <?php foreach ($radNames as $rn): ?><span class="badge q" title="radar">📡 <?= View::e($rn) ?></span><?php endforeach; ?>
       </div>
       <div class="title"><a href="?r=product&id=<?= (int) $p['id'] ?>"><?= View::e($p['title']) ?></a></div>
       <div class="price">
@@ -104,27 +129,23 @@ $cur = static fn (string $k, string $v): string => ($filters[$k] ?? '') === $v ?
         <?php if ($p['discount_pct']): ?><span class="off">-<?= (int) $p['discount_pct'] ?>%</span><?php endif; ?>
       </div>
       <div class="meta">
-        <span><?= $p['rating'] !== null ? '★ ' . rtrim(rtrim(number_format((float) $p['rating'],1,'.',''),'0'),'.') : '★ n/d' ?></span>
-        <span>· <?= View::e(View::salesLabel($p['sales_signal'])) ?></span>
-        <?php if ($p['rank_position'] !== null): ?><span>· #<?= (int) $p['rank_position'] ?></span><?php endif; ?>
+        <span><?= $p['rating'] !== null ? '★ ' . rtrim(rtrim(number_format((float) $p['rating'],1,'.',''),'0'),'.') : 'sem avaliação' ?></span>
+        <span>· Procura: <?= View::e(View::vendasNome($p['sales_signal'])) ?></span>
       </div>
-      <div class="meta"><span>📥 <?= View::ago($p['discovered_at']) ?></span>
+      <div class="meta"><span><?= View::e(View::faixaEmoji($p['hot_faixa'])) ?> <?= View::e(View::faixaNome($p['hot_faixa'])) ?></span>
         <span>· <span class="badge <?= $p['status']==='descartado'?'baixo':'q' ?>"><?= View::e(EditorialStatus::label((string) $p['status'])) ?></span></span>
+        <span>· há <?= View::ago($p['discovered_at']) ?></span>
       </div>
       <div class="actions">
-        <form method="post" action="?r=product.status">
-          <input type="hidden" name="id" value="<?= (int) $p['id'] ?>">
-          <input type="hidden" name="to" value="aprovado">
-          <input type="hidden" name="back" value="<?= $back ?>">
-          <button class="ok" type="submit">Aprovar</button>
-        </form>
-        <form method="post" action="?r=product.status">
-          <input type="hidden" name="id" value="<?= (int) $p['id'] ?>">
-          <input type="hidden" name="to" value="analisar">
-          <input type="hidden" name="back" value="<?= $back ?>">
-          <button class="warn" type="submit">Analisar</button>
-        </form>
-        <form method="post" action="?r=product.status" onsubmit="var r=prompt('Motivo do descarte (opcional):');if(r===null)return false;this.reason.value=r;">
+        <?php foreach ([['aprovado','Aprovar','ok'],['analisar','Analisar','warn']] as [$to,$lbl,$cls]): ?>
+          <form method="post" action="?r=product.status"><?= View::csrf() ?>
+            <input type="hidden" name="id" value="<?= (int) $p['id'] ?>">
+            <input type="hidden" name="to" value="<?= $to ?>">
+            <input type="hidden" name="back" value="<?= $back ?>">
+            <button class="<?= $cls ?>" type="submit"><?= $lbl ?></button>
+          </form>
+        <?php endforeach; ?>
+        <form method="post" action="?r=product.status" onsubmit="var r=prompt('Motivo do descarte (opcional):');if(r===null)return false;this.reason.value=r;"><?= View::csrf() ?>
           <input type="hidden" name="id" value="<?= (int) $p['id'] ?>">
           <input type="hidden" name="to" value="descartado">
           <input type="hidden" name="reason" value="">
@@ -133,11 +154,25 @@ $cur = static fn (string $k, string $v): string => ($filters[$k] ?? '') === $v ?
         </form>
       </div>
       <div class="actions">
-        <a class="badge q" style="flex:1;text-align:center;padding:6px" href="<?= View::e($p['url_original']) ?>" target="_blank" rel="noopener">Abrir produto ↗</a>
-        <a class="badge q" style="flex:1;text-align:center;padding:6px" href="?r=product&id=<?= (int) $p['id'] ?>">Ficha / por quê →</a>
+        <a class="btn" style="flex:1;text-align:center" href="<?= View::e($p['url_original']) ?>" target="_blank" rel="noopener">Abrir no site ↗</a>
+        <a class="btn" style="flex:1;text-align:center" href="?r=product&id=<?= (int) $p['id'] ?>">Ver ficha →</a>
       </div>
     </div>
   </div>
   <?php endforeach; ?>
   <?php if (!$rows): ?><p class="muted">Nenhum produto para estes filtros.</p><?php endif; ?>
 </div>
+
+<script>
+function picks(){return [...document.querySelectorAll('.pick:checked')];}
+function onPick(){
+  var sel=picks();
+  document.getElementById('bulkbar').hidden = sel.length===0;
+  document.getElementById('bulkn').textContent = sel.length;
+  document.getElementById('bulkids').innerHTML = sel.map(c=>'<input type=hidden name="ids[]" value="'+c.value+'">').join('');
+}
+function clearSel(){document.querySelectorAll('.pick').forEach(c=>c.checked=false);document.getElementById('selall').checked=false;onPick();}
+document.getElementById('selall').addEventListener('change',function(){
+  document.querySelectorAll('.pick').forEach(c=>c.checked=this.checked);onPick();
+});
+</script>

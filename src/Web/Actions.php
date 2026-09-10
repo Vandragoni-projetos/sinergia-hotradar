@@ -183,12 +183,46 @@ final class Actions
     public static function radarDelete(App $app): void
     {
         $id = (int) ($_POST['id'] ?? 0);
-        if (($_POST['confirm'] ?? '') === 'DELETE') {
-            $app->radars()->delete($id);
-            self::redirect('?r=radars&flash=' . rawurlencode('Radar excluído (produtos coletados permanecem no histórico).'));
+        $radar = $app->radars()->find($id);
+        if ($radar === null || ($_POST['confirm'] ?? '') !== 'EXCLUIR') {
+            self::redirect('?r=radar.delete&id=' . $id . '&flash=' . rawurlencode('Confirmação inválida — nada foi excluído.'));
             return;
         }
-        self::redirect('?r=radar.edit&id=' . $id);
+        $mode = (string) ($_POST['mode'] ?? 'somente_radar');
+        $svc = $app->radarLifecycle();
+        $done = $mode === 'radar_e_exclusivos'
+            ? $svc->deleteWithExclusive($radar, 'humano:painel')
+            : $svc->deleteRadarOnly($radar, 'humano:painel');
+
+        $flash = $mode === 'radar_e_exclusivos'
+            ? sprintf(
+                'Radar "%s" excluído. %d produto(s) exclusivo(s) e %d registro(s) de histórico removidos. Produtos compartilhados foram preservados.',
+                $radar->name,
+                $done['produtos_removidos'],
+                $done['snapshots_removidos']
+            )
+            : sprintf(
+                'Radar "%s" excluído. Todos os produtos, o histórico e as decisões foram preservados (produtos de outros radares continuam normalmente).',
+                $radar->name
+            );
+        self::redirect('?r=radars&flash=' . rawurlencode($flash));
+    }
+
+    public static function radarClear(App $app): void
+    {
+        $id = (int) ($_POST['id'] ?? 0);
+        $radar = $app->radars()->find($id);
+        if ($radar === null || ($_POST['confirm'] ?? '') !== 'LIMPAR') {
+            self::redirect('?r=radar.delete&id=' . $id . '&flash=' . rawurlencode('Confirmação inválida — nada foi limpo.'));
+            return;
+        }
+        $done = $app->radarLifecycle()->clearData($radar, 'humano:painel');
+        $flash = sprintf(
+            'Dados do radar "%s" limpos. %d produto(s) exclusivo(s) removido(s). O radar e a configuração continuam. Rode uma nova coleta quando quiser.',
+            $radar->name,
+            $done['produtos_removidos']
+        );
+        self::redirect('?r=radars&flash=' . rawurlencode($flash));
     }
 
     // --------------------------------------------------------------- settings
@@ -273,5 +307,184 @@ final class Actions
         }
         $qs['ai'] = $res['ok'] ? $res['text'] : ('⚠️ ' . $res['error']);
         self::redirect('?' . http_build_query($qs));
+    }
+
+    // --------------------------------------------------------------------- login
+
+    public static function login(App $app): void
+    {
+        // CSRF do login: token da sessão já existente (formulário renderizado antes)
+        if (!Auth::csrfValid($_POST['_csrf'] ?? null)) {
+            self::redirect('?r=login&e=' . rawurlencode('Sessão expirada. Tente de novo.'));
+            return;
+        }
+        $ok = Auth::attempt(
+            (string) ($_POST['user'] ?? ''),
+            (string) ($_POST['password'] ?? ''),
+            !empty($_POST['remember'])
+        );
+        if (!$ok) {
+            self::redirect('?r=login&e=' . rawurlencode('Usuário ou senha incorretos.'));
+            return;
+        }
+        self::redirect('?r=dashboard');
+    }
+
+    // ----------------------------------------------------------- curadoria em lote
+
+    public static function productBulk(App $app): void
+    {
+        $to = (string) ($_POST['to'] ?? '');
+        $ids = array_values(array_filter(array_map('intval', (array) ($_POST['ids'] ?? []))));
+        $reason = trim((string) ($_POST['reason'] ?? '')) ?: null;
+        $back = (string) ($_POST['back'] ?? '?r=products');
+
+        if (!in_array($to, [EditorialStatus::APROVADO, EditorialStatus::ANALISAR, EditorialStatus::DESCARTADO], true) || $ids === []) {
+            self::redirect($back . (str_contains($back, '?') ? '&' : '?') . 'flash=' . rawurlencode('Selecione produtos e uma ação válida.'));
+            return;
+        }
+        $n = 0;
+        foreach ($ids as $id) {
+            $row = $app->products()->find($id);
+            if ($row === null) {
+                continue;
+            }
+            $from = (string) $row['status'];
+            if ($from === $to) {
+                continue;
+            }
+            $app->products()->setStatus($id, $to, $to === EditorialStatus::DESCARTADO ? $reason : null);
+            $app->editorial()->log($id, $from, $to, $reason, 'humano:painel(lote)');
+            $n++;
+        }
+        $label = ['aprovado' => 'aprovado(s)', 'analisar' => 'marcado(s) para analisar', 'descartado' => 'descartado(s)'][$to];
+        self::redirect($back . (str_contains($back, '?') ? '&' : '?') . 'flash=' . rawurlencode("$n produto(s) $label."));
+    }
+
+    // ------------------------------------------------------------------ exportação
+
+    public static function exportProducts(App $app): void
+    {
+        $filters = [
+            'radar' => $_GET['radar'] ?? '',
+            'marketplace' => $_GET['marketplace'] ?? '',
+            'faixa' => $_GET['faixa'] ?? '',
+            'status' => $_GET['status'] ?? '',
+            'category' => $_GET['category'] ?? '',
+            'has_video' => $_GET['has_video'] ?? '',
+            'min_discount' => $_GET['min_discount'] ?? '',
+            'min_rating' => $_GET['min_rating'] ?? '',
+            'discovered_since' => $_GET['discovered_since'] ?? '',
+            'q' => $_GET['q'] ?? '',
+            'limit' => 5000,
+        ];
+        if (isset($_GET['aprovados'])) {
+            $filters['status'] = 'aprovado';
+        }
+        $rows = $app->products()->search(array_filter($filters, static fn ($v) => $v !== ''));
+
+        $slugMap = $app->productRadars()->slugsByProductIds(array_column($rows, 'id'));
+        $names = [];
+        foreach ($app->radars()->all() as $r) {
+            $names[$r->slug] = $r->name;
+        }
+        $radarNamesByProduct = [];
+        foreach ($slugMap as $pid => $slugs) {
+            $radarNamesByProduct[$pid] = array_map(static fn ($s) => $names[$s] ?? $s, $slugs);
+        }
+
+        $exp = $app->productCsvExporter();
+        $scope = !empty($_GET['radar']) ? ('radar-' . $_GET['radar']) : (isset($_GET['aprovados']) ? 'aprovados' : 'produtos');
+        $csv = $exp->toString($rows, $radarNamesByProduct);
+
+        self::sendFile($csv, $exp->filename($scope), 'text/csv; charset=utf-8');
+    }
+
+    public static function reportExport(App $app): void
+    {
+        $f = array_filter([
+            'radar' => $_GET['radar'] ?? '',
+            'marketplace' => $_GET['marketplace'] ?? '',
+        ], static fn ($v) => $v !== '');
+        $reports = $app->reports();
+        $movers = $reports->scoreMovers($f, 50);
+
+        $fh = fopen('php://temp', 'r+');
+        fwrite($fh, "\xEF\xBB\xBF");
+        $sec = static function ($title, array $rows) use ($fh): void {
+            fputcsv($fh, [$title], ';');
+            fputcsv($fh, ['Produto', 'Marketplace', 'Hot Score', 'Detalhe'], ';');
+            foreach ($rows as $r) {
+                fputcsv($fh, [
+                    (string) ($r['title'] ?? ''),
+                    \HotRadar\Web\View::marketplaceLabel((string) ($r['marketplace'] ?? '')),
+                    (string) ($r['hot_score'] ?? $r['last_hot'] ?? ''),
+                    isset($r['delta']) ? ('Δ ' . $r['delta'])
+                        : (isset($r['drop_pct']) ? ('-' . $r['drop_pct'] . '% de preço') : ''),
+                ], ';');
+            }
+            fputcsv($fh, [], ';');
+        };
+        $sec('TOP HOT SCORES', $reports->topHotScores($f, 30));
+        $sec('SUBIRAM DE SCORE', $movers['up']);
+        $sec('CAÍRAM DE SCORE', $movers['down']);
+        $sec('MAIORES QUEDAS DE PREÇO', $reports->priceDrops($f, 30));
+        $sec('PRODUTOS COM VÍDEO', $reports->withVideo($f, 100));
+        rewind($fh);
+        $csv = stream_get_contents($fh) ?: '';
+        fclose($fh);
+
+        $scope = !empty($f['radar']) ? ('relatorio-' . $f['radar']) : 'relatorio';
+        self::sendFile($csv, 'hotradar-' . $scope . '-' . date('Ymd-His') . '.csv', 'text/csv; charset=utf-8');
+    }
+
+    private static function sendFile(string $content, string $filename, string $mime): void
+    {
+        header('Content-Type: ' . $mime);
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Content-Length: ' . strlen($content));
+        header('X-Content-Type-Options: nosniff');
+        echo $content;
+    }
+
+    // ------------------------------------------------------------ analisar por URL
+
+    public static function analyzeUrl(App $app): void
+    {
+        $url = (string) ($_POST['url'] ?? '');
+        $result = $app->urlAnalyzer()->analyze($url);
+
+        View::page('analyze/index', [
+            'active' => 'analyze',
+            'result' => $result,
+            'url' => $url,
+            'radars' => $app->radars()->all(),
+        ], 'Analisar por URL');
+    }
+
+    public static function analyzeSave(App $app): void
+    {
+        $url = (string) ($_POST['url'] ?? '');
+        $radarId = (int) ($_POST['radar_id'] ?? 0);
+        $radar = $radarId > 0 ? $app->radars()->find($radarId) : null;
+        if ($radar === null) {
+            self::redirect('?r=analyze&flash=' . rawurlencode('Escolha um radar para guardar o produto.'));
+            return;
+        }
+        $result = $app->urlAnalyzer()->analyze($url);
+        if ($result['product'] === null) {
+            self::redirect('?r=analyze&flash=' . rawurlencode('Não há dados suficientes para salvar este produto.'));
+            return;
+        }
+        $np = $result['product'];
+        $np->radarSlug = $radar->slug;
+        $np->radarId = $radar->id;
+        $breakdown = $app->hotScore()->evaluate($np);
+        $res = $app->products()->upsert($np, $breakdown);
+        $app->productRadars()->link($res['id'], (int) $radar->id);
+
+        self::redirect('?r=product&id=' . $res['id'] . '&flash=' . rawurlencode(
+            'Produto salvo no radar "' . $radar->name . '".'
+        ));
     }
 }

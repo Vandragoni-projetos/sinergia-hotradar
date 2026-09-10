@@ -3,51 +3,69 @@ use HotRadar\Web\View;
 /**
  * @var array<int,\HotRadar\Radar\Radar> $radars
  * @var array<string,int> $counts
+ * @var array<string,?string> $last_by_radar
  */
 ?>
 <div style="display:flex;justify-content:space-between;align-items:center">
-  <h1>Radares <span class="muted" style="font-size:14px">— nichos monitorados</span></h1>
-  <a href="?r=radar.edit"><button class="primary" type="button">+ Criar Radar</button></a>
+  <h1>Radares <span class="muted" style="font-size:14px">— seus nichos monitorados</span></h1>
+  <a class="btn primary" href="?r=radar.edit">+ Novo radar</a>
 </div>
-<p class="muted">Cada radar tem configuração própria (categorias, keywords, exclusões, filtros). Vários podem ficar ativos ao mesmo tempo sem misturar produtos — cada produto guarda de qual radar veio.</p>
+<p class="muted">Cada radar procura produtos nas categorias e com os filtros que você definir. Um mesmo produto pode aparecer em vários radares ao mesmo tempo.</p>
 
-<div class="grid" style="grid-template-columns:1fr;gap:12px">
-  <?php foreach ($radars as $rd): ?>
-  <div class="panel">
-    <div style="display:flex;justify-content:space-between;align-items:start;gap:12px">
-      <div>
-        <h2 style="margin:0 0 4px"><?= View::e($rd->name) ?>
-          <span class="badge <?= $rd->enabled ? '' : 'baixo' ?>" style="<?= $rd->enabled ? 'background:var(--ok);color:#fff;border-color:transparent' : '' ?>"><?= $rd->enabled ? 'ATIVO' : 'DESLIGADO' ?></span>
-        </h2>
-        <div class="muted" style="font-size:12px"><code><?= View::e($rd->slug) ?></code> · <?= (int) ($counts[$rd->slug] ?? 0) ?> produtos coletados</div>
-      </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <a href="?r=radar.edit&id=<?= (int) $rd->id ?>"><button type="button">Editar</button></a>
-        <form method="post" action="?r=radar.toggle"><input type="hidden" name="id" value="<?= (int) $rd->id ?>">
-          <button type="submit" class="ghost"><?= $rd->enabled ? 'Desativar' : 'Ativar' ?></button></form>
-        <form method="post" action="?r=radar.collect"><input type="hidden" name="id" value="<?= (int) $rd->id ?>">
-          <button type="submit" class="ok">Rodar coleta</button></form>
-      </div>
-    </div>
-    <div class="kv" style="margin-top:10px;font-size:13px">
-      <div>Marketplaces</div><div><?= View::e(implode(', ', $rd->marketplaces)) ?: '—' ?></div>
-      <div>Categorias ML</div><div><?php
-        echo $rd->mlCategories ? implode(', ', array_map(
-          static fn ($c) => View::e($c['id'] . ' · ' . ($c['label'] ?? '')), $rd->mlCategories
-        )) : '<span class="muted">nenhuma</span>'; ?></div>
-      <div>Keywords adicionais</div><div><?= View::e(implode(', ', $rd->extraKeywords)) ?: '—' ?></div>
-      <div>Palavras excluídas</div><div><?= View::e(implode(', ', $rd->excludedWords)) ?: '—' ?></div>
-      <div>Páginas / categoria</div><div><?= (int) $rd->pagesPerCategory ?></div>
-      <div>Filtros</div><div>
-        <?= $rd->minDiscount !== null ? 'desconto ≥ ' . (int) $rd->minDiscount . '%' : '' ?>
-        <?= $rd->priceMin !== null ? ' · preço ≥ ' . View::money($rd->priceMin) : '' ?>
-        <?= $rd->priceMax !== null ? ' · preço ≤ ' . View::money($rd->priceMax) : '' ?>
-        <?= $rd->requireVideo ? ' · exige vídeo' : '' ?>
-        <?= ($rd->minDiscount === null && $rd->priceMin === null && $rd->priceMax === null && !$rd->requireVideo) ? '<span class="muted">nenhum</span>' : '' ?>
-      </div>
-    </div>
-    <p style="margin:10px 0 0"><a href="?r=products&radar=<?= View::e($rd->slug) ?>">Ver produtos deste radar na Curadoria →</a></p>
-  </div>
-  <?php endforeach; ?>
-  <?php if (!$radars): ?><div class="panel muted">Nenhum radar cadastrado. <a href="?r=radar.edit">Criar o primeiro</a>.</div><?php endif; ?>
+<div class="panel" style="padding:0;overflow-x:auto">
+  <table>
+    <tr>
+      <th>Radar</th><th>Situação</th><th>Marketplace</th><th>Categorias</th>
+      <th>Produtos</th><th>Última coleta</th><th style="text-align:right">Ações</th>
+    </tr>
+    <?php foreach ($radars as $rd):
+      $n = (int) ($counts[$rd->slug] ?? 0);
+      $cats = implode(', ', array_map(static fn ($c) => $c['label'] ?? $c['id'], $rd->mlCategories));
+    ?>
+      <tr>
+        <td>
+          <strong><?= View::e($rd->name) ?></strong>
+          <?php if ($rd->requireVideo || $rd->minDiscount !== null || $rd->priceMin !== null): ?>
+            <span class="muted" style="font-size:11px;display:block">
+              <?= $rd->minDiscount !== null ? 'desconto ≥ ' . (int) $rd->minDiscount . '% · ' : '' ?>
+              <?= $rd->priceMin !== null ? 'a partir de ' . View::money($rd->priceMin) . ' · ' : '' ?>
+              <?= $rd->requireVideo ? 'só com vídeo' : '' ?>
+            </span>
+          <?php endif; ?>
+        </td>
+        <td>
+          <?php if ($rd->enabled): ?>
+            <span class="badge" style="background:var(--ok);color:#fff;border-color:transparent">● Ativo</span>
+          <?php else: ?>
+            <span class="badge">❚❚ Pausado</span>
+          <?php endif; ?>
+        </td>
+        <td><?= View::e(implode(', ', array_map([View::class, 'marketplaceLabel'], $rd->marketplaces))) ?></td>
+        <td class="muted" style="max-width:240px;font-size:12px"><?= View::e($cats ?: '—') ?></td>
+        <td><strong><?= $n ?></strong></td>
+        <td class="muted" style="font-size:12px"><?= View::ago($last_by_radar[$rd->slug] ?? null) ?></td>
+        <td style="text-align:right;white-space:nowrap">
+          <?php if ($rd->hasMarketplace('mercado_livre')): ?>
+            <form method="post" action="?r=radar.collect" style="display:inline">
+              <?= View::csrf() ?>
+              <input type="hidden" name="id" value="<?= (int) $rd->id ?>">
+              <button class="btn primary" type="submit" title="Coleta só este radar; os outros não são afetados">Coletar</button>
+            </form>
+          <?php endif; ?>
+          <a class="btn" href="?r=products&radar=<?= View::e($rd->slug) ?>">Ver produtos</a>
+          <a class="btn" href="?r=radar.edit&id=<?= (int) $rd->id ?>">Editar</a>
+          <form method="post" action="?r=radar.toggle" style="display:inline">
+            <?= View::csrf() ?>
+            <input type="hidden" name="id" value="<?= (int) $rd->id ?>">
+            <button class="btn" type="submit"><?= $rd->enabled ? 'Pausar' : 'Ativar' ?></button>
+          </form>
+          <a class="btn" href="?r=radar.delete&id=<?= (int) $rd->id ?>" style="border-color:var(--danger);color:var(--danger)">Excluir</a>
+        </td>
+      </tr>
+    <?php endforeach; ?>
+    <?php if (!$radars): ?><tr><td colspan="7" class="muted">Nenhum radar. <a href="?r=radar.edit">Criar o primeiro</a>.</td></tr><?php endif; ?>
+  </table>
 </div>
+
+<p class="muted" style="font-size:12px">💡 "Coletar" roda apenas o radar escolhido — você não precisa pausar os outros.
+No <a href="?r=dashboard">Início</a> há o botão "Coletar tudo" que roda todos os radares ativos de uma vez.</p>
