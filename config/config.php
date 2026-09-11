@@ -71,4 +71,9 @@ return [
     ],
 
     'hotscore' => require __DIR__ . '/hotscore.php',
+
+    // HOT SCORE V2 (shadow mode) — calculada só pelo comando
+    // `hotscore:shadow-v2` e exibida na tela de diagnóstico ?r=hotscore.compare.
+    // NÃO é usada pela coleta, Curadoria ou dashboard oficiais nesta etapa.
+    'hotscore_v2' => require __DIR__ . '/hotscore_v2.php',
 ];

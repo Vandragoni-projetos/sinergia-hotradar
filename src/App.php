@@ -28,6 +28,8 @@ use HotRadar\Repository\SettingsRepository;
 use HotRadar\Repository\SnapshotRepository;
 use HotRadar\Score\HotScore;
 use HotRadar\Score\HotScoreConfig;
+use HotRadar\Score\HotScoreV2;
+use HotRadar\Score\HotScoreV2Config;
 use HotRadar\Support\Http;
 
 /**
@@ -129,6 +131,29 @@ final class App
     public function hotScore(): HotScore
     {
         return new HotScore($this->hotScoreConfig());
+    }
+
+    // ---- HOT SCORE V2 (shadow mode — NÃO usado pela coleta/Curadoria oficiais) ----
+
+    public function hotScoreV2Config(): HotScoreV2Config
+    {
+        return HotScoreV2Config::load($this->config['hotscore_v2'], $this->db);
+    }
+
+    public function hotScoreV2(): HotScoreV2
+    {
+        return new HotScoreV2($this->hotScoreV2Config());
+    }
+
+    /**
+     * Flag preparada para uma futura ativação da V2 — hoje sempre 'v1'
+     * (fonte oficial). Só a tela de diagnóstico lê isto; nenhuma tela/coleta
+     * troca de comportamento com base nele nesta etapa.
+     */
+    public function hotScoreActiveVersion(): string
+    {
+        $v = (string) ($this->settings()->get('hotscore_active_version', ['value' => 'v1'])['value'] ?? 'v1');
+        return in_array($v, ['v1', 'v2'], true) ? $v : 'v1';
     }
 
     public function discovery(): DiscoveryService

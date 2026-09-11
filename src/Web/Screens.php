@@ -229,6 +229,28 @@ final class Screens
         ], 'Configurações');
     }
 
+    /**
+     * Diagnóstico HOT SCORE V1 × V2 (shadow mode). Somente leitura — não
+     * altera nada. Compara o score oficial (V1, em hr_products) com o score
+     * V2 calculado por `php bin/hr.php hotscore:shadow-v2` no contexto de
+     * cada radar (hr_product_radars).
+     */
+    public static function hotscoreCompare(App $app): void
+    {
+        $radarSlug = (string) ($_GET['radar'] ?? '');
+        $rows = $app->productRadars()->compareRows($radarSlug !== '' ? $radarSlug : null, 500);
+
+        View::page('hotscore/compare', [
+            'active' => 'config',
+            'rows' => $rows,
+            'radars' => $app->radars()->all(),
+            'radar_slug' => $radarSlug,
+            'scored_count' => $app->productRadars()->shadowScoredCount(),
+            'active_version' => $app->hotScoreActiveVersion(),
+            'v2_config' => $app->hotScoreV2Config(),
+        ], 'Hot Score V1 × V2 (diagnóstico)');
+    }
+
     public static function analyze(App $app): void
     {
         View::page('analyze/index', [
