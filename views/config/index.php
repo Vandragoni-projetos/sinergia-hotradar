@@ -137,6 +137,15 @@ $badge = static fn (bool $ok, string $y, string $n) =>
   </div>
 
   <div class="panel" style="max-width:820px;margin-top:14px">
+    <h2 style="margin-top:0">Hot Score V2 <span class="muted" style="font-weight:400;font-size:12px">(em avaliação — shadow mode)</span></h2>
+    <p class="muted" style="font-size:12px;margin:0 0 8px">
+      Uma versão revisada do Hot Score (aderência calculada por radar, vídeo como bônus, desconto contínuo)
+      está sendo calculada em paralelo, sem afetar a Curadoria. É só diagnóstico até uma decisão de ativação.
+    </p>
+    <a class="btn" href="?r=hotscore.compare">Comparar Hot Score V1 × V2</a>
+  </div>
+
+  <div class="panel" style="max-width:820px;margin-top:14px">
     <h2 style="margin-top:0">Audit log (configurações)</h2>
     <table class="hist">
       <tr><th>Quando</th><th>Área</th><th>Ação</th><th>Ref</th><th>Ator</th></tr>

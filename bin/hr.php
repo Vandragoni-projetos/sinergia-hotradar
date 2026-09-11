@@ -12,6 +12,7 @@ declare(strict_types=1);
  *   php bin/hr.php collect:ml [--dry-run] [--pages=3] [--categories=MLB1574,...] [--radar=slug]
  *   php bin/hr.php collect:shopee                   (mostra status Shopee)
  *   php bin/hr.php score:recompute
+ *   php bin/hr.php hotscore:shadow-v2 [--radar=slug]   calcula HOT SCORE V2 (shadow — não altera a V1)
  *   php bin/hr.php stats
  *   php bin/hr.php test
  */
@@ -21,6 +22,7 @@ require __DIR__ . '/../config/bootstrap.php';
 use HotRadar\App;
 use HotRadar\Collector\CollectorContext;
 use HotRadar\Model\ProductHydrator;
+use HotRadar\Radar\Radar;
 
 $argvv = $argv;
 array_shift($argvv);
@@ -121,6 +123,10 @@ try {
             line("HOT SCORE recalculado para $n produto(s).");
             break;
 
+        case 'hotscore:shadow-v2':
+            runHotScoreShadowV2($app, isset($opts['radar']) ? (string) $opts['radar'] : null);
+            break;
+
         case 'stats':
             printStats($app);
             break;
@@ -217,6 +223,78 @@ function recomputeScores(App $app): int
         $n++;
     }
     return $n;
+}
+
+/**
+ * HOT SCORE V2 — SHADOW MODE.
+ *
+ * Calcula BASE + aderência contextual para cada associação produto×radar já
+ * existente e grava SOMENTE nas colunas novas de hr_product_radars (migration
+ * 007). NÃO toca em hr_products.hot_score/hot_faixa (a V1 continua sendo a
+ * fonte oficial usada por toda a aplicação), NÃO recoleta, NÃO altera status
+ * editorial, NÃO cria produto nem associação nova.
+ */
+function runHotScoreShadowV2(App $app, ?string $radarSlugFilter): void
+{
+    $v2 = $app->hotScoreV2();
+    $pairs = $app->productRadars()->allPairIds();
+
+    $radarCache = [];
+    $getRadar = static function (int $id) use ($app, &$radarCache): ?Radar {
+        return $radarCache[$id] ??= $app->radars()->find($id);
+    };
+
+    $v1Faixas = ['muito_quente' => 0, 'bom' => 0, 'analisar' => 0, 'baixo' => 0];
+    $v2Faixas = ['muito_quente' => 0, 'bom' => 0, 'analisar' => 0, 'baixo' => 0];
+    $processed = 0;
+    $skipped = 0;
+
+    foreach ($pairs as $pair) {
+        $radar = $getRadar($pair['radar_id']);
+        if ($radar === null) {
+            $skipped++;
+            continue;
+        }
+        if ($radarSlugFilter !== null && $radarSlugFilter !== '' && $radar->slug !== $radarSlugFilter) {
+            continue;
+        }
+        $row = $app->products()->find($pair['product_id']);
+        if ($row === null) {
+            $skipped++;
+            continue;
+        }
+
+        $np = ProductHydrator::fromRow($row);
+        $breakdown = $v2->evaluateForRadar($np, $radar);
+        $ad = $v2->resolveAdherence($np, $radar);
+
+        $app->productRadars()->saveShadowContext(
+            $pair['id'],
+            $ad['level'],
+            $ad['points'],
+            $breakdown->total,
+            $breakdown->faixaKey,
+            json_encode($breakdown->toArray(), JSON_UNESCAPED_UNICODE),
+            $breakdown->version,
+            $app->db->now(),
+        );
+
+        $v1Faixa = (string) ($row['hot_faixa'] ?? 'baixo');
+        $v1Faixas[$v1Faixa] = ($v1Faixas[$v1Faixa] ?? 0) + 1;
+        $v2Faixas[$breakdown->faixaKey] = ($v2Faixas[$breakdown->faixaKey] ?? 0) + 1;
+        $processed++;
+    }
+
+    line("HOT SCORE V2 (shadow) calculado para $processed associação(ões) produto×radar." . ($skipped > 0 ? " ($skipped ignoradas — produto/radar não encontrado)" : ''));
+    line('');
+    line('Distribuição de faixas nas associações processadas (V1 do produto x V2 no contexto do radar):');
+    line(sprintf('  %-16s %8s %8s', 'faixa', 'V1', 'V2'));
+    foreach (['muito_quente', 'bom', 'analisar', 'baixo'] as $k) {
+        line(sprintf('  %s %-14s %8d %8d', faixaEmoji($k), $k, $v1Faixas[$k], $v2Faixas[$k]));
+    }
+    line('');
+    line('A V1 continua sendo a fonte oficial (hr_products.hot_score/hot_faixa) — nada mudou na Curadoria.');
+    line('Ver comparação detalhada em: ?r=hotscore.compare (painel).');
 }
 
 function printStats(App $app): void

@@ -93,6 +93,7 @@ try {
         'reports'      => Screens::reports($app),
         'config'       => Screens::config($app),
         'analyze'      => Screens::analyze($app),
+        'hotscore.compare' => Screens::hotscoreCompare($app),   // diagnóstico V1 x V2 (shadow, só leitura)
         'print.ficha'  => Screens::printFicha($app),
         'print.pack'   => Screens::printPack($app),
         'print.report' => Screens::printReport($app),
