@@ -33,6 +33,7 @@ use HotRadar\Score\HotScoreV2Config;
 use HotRadar\Support\BootFailedException;
 use HotRadar\Support\EnvironmentValidator;
 use HotRadar\Support\Http;
+use HotRadar\System\SystemResetService;
 
 /**
  * Composition root. Monta os objetos a partir da config. Sem framework.
@@ -139,6 +140,16 @@ final class App
     public function radarLifecycle(): RadarLifecycleService
     {
         return new RadarLifecycleService($this->db, $this->audit());
+    }
+
+    /**
+     * "Zerar tudo" — reset GLOBAL, separado do ciclo de vida de um radar
+     * (ver HotRadar\System\SystemResetService). Usado só pela tela dedicada
+     * de reset; nunca pelo fluxo de excluir/limpar um radar específico.
+     */
+    public function systemReset(): SystemResetService
+    {
+        return new SystemResetService($this->db, $this->audit());
     }
 
     public function productCsvExporter(): ProductCsvExporter

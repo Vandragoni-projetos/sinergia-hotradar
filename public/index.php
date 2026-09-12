@@ -92,6 +92,7 @@ try {
             'report.ai'        => Actions::reportAi($app),
             'analyze.url'      => Actions::analyzeUrl($app),
             'analyze.save'     => Actions::analyzeSave($app),
+            'system.reset'     => Actions::systemReset($app),   // "zerar tudo" — ação SEPARADA de radar.delete/radar.clear
             default            => Actions::notFound(),
         };
         exit;
@@ -108,6 +109,7 @@ try {
         'config'       => Screens::config($app),
         'analyze'      => Screens::analyze($app),
         'hotscore.compare' => Screens::hotscoreCompare($app),   // diagnóstico V1 x V2 (shadow, só leitura)
+        'system.reset' => Screens::systemResetImpact($app),     // "zerar tudo" — tela de impacto (GET)
         'print.ficha'  => Screens::printFicha($app),
         'print.pack'   => Screens::printPack($app),
         'print.report' => Screens::printReport($app),

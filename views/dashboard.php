@@ -6,6 +6,7 @@ use HotRadar\Editorial\EditorialStatus;
  * @var array<string,int> $faixa @var array<string,int> $status
  * @var array<int,array{key:string,n:int}> $by_radar
  * @var array<int,array<string,mixed>> $runs
+ * @var int $runs_total total real de hr_collection_runs (não confundir com count($runs), que satura em 12)
  * @var array<int,array{marketplace:string,available:bool,reason:?string,label:string}> $collectors
  * @var array<int,\HotRadar\Radar\Radar> $radars
  */
@@ -19,7 +20,7 @@ $ativos = array_filter($radars, static fn ($r) => $r->enabled && $r->hasMarketpl
   <div class="stat"><div class="k">Produtos monitorados</div><div class="v"><?= $total ?></div></div>
   <div class="stat"><div class="k">Descobertos hoje</div><div class="v"><?= $today ?></div></div>
   <div class="stat"><div class="k">🎬 Com vídeo</div><div class="v"><?= $with_video ?></div></div>
-  <div class="stat"><div class="k">Coletas registradas</div><div class="v"><?= count($runs) ?></div></div>
+  <div class="stat"><div class="k">Coletas registradas</div><div class="v"><?= $runs_total ?></div></div>
 </div>
 
 <h2>Classificação dos produtos</h2>
