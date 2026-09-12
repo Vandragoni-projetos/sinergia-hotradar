@@ -38,6 +38,15 @@ final class Env
                 $val = trim(substr($line, $pos + 1));
                 if (strlen($val) >= 2 && ($val[0] === '"' || $val[0] === "'") && substr($val, -1) === $val[0]) {
                     $val = substr($val, 1, -1);
+                } else {
+                    // Achado incidental durante a auditoria de 2026-09-11: valores NÃO citados
+                    // podem ter um comentário inline (ex.: "HR_ENV=local   # local | production",
+                    // presente tanto no .env.example quanto em .env reais copiados dele). Sem este
+                    // corte, `Env::get('HR_ENV', 'local')` nunca era exatamente "local", e
+                    // `EnvironmentValidator::isLocal()` (e o antigo `bootstrap.php` display_errors)
+                    // tratavam ambiente LOCAL como se fosse produção. Só corta "# ..." quando
+                    // precedido de espaço, para não mutilar um valor legítimo que contenha "#".
+                    $val = rtrim((string) preg_replace('/\s+#.*$/', '', $val));
                 }
                 self::$data[$key] = $val;
             }

@@ -7,18 +7,30 @@ use HotRadar\Support\Env;
  * Configuração central do HOTRADAR. Lê do ambiente (.env). Sem segredos hardcoded.
  * @return array<string,mixed>
  */
+$isLocal = Env::get('HR_ENV', 'local') === 'local';
+
+// E1 (auditoria de 2026-09-11) — fora de ambiente local, NENHUM valor de
+// banco tem um default "plausível": ausência de qualquer variável vira
+// string vazia, de propósito, para que HotRadar\Support\EnvironmentValidator
+// (chamada por App::bootOrFail(), único ponto de boot da aplicação) recuse
+// o boot explicitamente em vez de conectar num host/driver "adivinhado".
+// Foi exatamente um default assim (HR_DB_DRIVER caindo em "sqlite" quando
+// ausente) que causou perda de dados de produção duas vezes neste projeto.
+$dbDefault = static fn (string $envKey, string $localDefault): ?string =>
+    $isLocal ? Env::get($envKey, $localDefault) : Env::get($envKey, '');
+
 return [
     'env' => Env::get('HR_ENV', 'local'),
     'app_url' => Env::get('HR_APP_URL', 'http://localhost:8090'),
     'timezone' => Env::get('HR_TIMEZONE', 'America/Sao_Paulo'),
 
     'db' => [
-        'driver' => Env::get('HR_DB_DRIVER', 'sqlite'),
+        'driver' => $dbDefault('HR_DB_DRIVER', 'sqlite'),
         'sqlite_path' => Env::get('HR_DB_SQLITE_PATH', 'storage/hotradar.sqlite'),
-        'host' => Env::get('HR_DB_HOST', 'hotradar-db'),
-        'port' => Env::int('HR_DB_PORT', 3306),
-        'name' => Env::get('HR_DB_NAME', 'hotradar'),
-        'user' => Env::get('HR_DB_USER', 'hotradar'),
+        'host' => $dbDefault('HR_DB_HOST', 'hotradar-db'),
+        'port' => $dbDefault('HR_DB_PORT', '3306'),
+        'name' => $dbDefault('HR_DB_NAME', 'hotradar'),
+        'user' => $dbDefault('HR_DB_USER', 'hotradar'),
         'password' => Env::get('HR_DB_PASSWORD', ''),
     ],
 

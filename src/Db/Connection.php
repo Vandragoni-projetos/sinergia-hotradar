@@ -9,6 +9,32 @@ use RuntimeException;
 /**
  * Fábrica/wrapper PDO. Suporta sqlite (dev local) e mysql/MariaDB (produção).
  * O schema é escrito para os dois dialetos (ver migrations/).
+ *
+ * ============================================================================
+ *  REGRA DE SEGURANÇA — NÃO REMOVER, NÃO "MELHORAR" (auditoria de 2026-09-11)
+ * ============================================================================
+ * Esta classe é INTENCIONALMENTE burra sobre qual driver usar: ela recebe
+ * `$cfg['driver']` já resolvido e só sabe abrir o que foi pedido — ou lança
+ * (`RuntimeException` para driver desconhecido, ou a `PDOException` nativa
+ * se a conexão MySQL falhar). **Isso é proposital.**
+ *
+ * JAMAIS adicionar aqui (ou em qualquer lugar) um `catch` que, ao falhar
+ * conectar no MySQL/MariaDB, tente `sqlite` como alternativa. Um fallback
+ * desses transformaria toda falha de infraestrutura (senha errada, host
+ * fora do ar, rede instável) num banco local vazio e SILENCIOSO — foi
+ * exatamente esse tipo de degradação (ainda que por outra via: o DRIVER
+ * nunca chegando a ser "mysql" por ausência de variável de ambiente, não
+ * por um catch aqui) que já causou perda de produção duas vezes neste
+ * projeto. Erro de MySQL deve PERMANECER erro — quem decide o que fazer com
+ * isso é `App::bootOrFail()` (fail-fast: HTTP 503 / exit != 0), nunca esta
+ * classe tentando ser "resiliente" sozinha.
+ *
+ * SQLite é exclusivo de ambiente local/dev/teste (`HR_ENV=local`, ou a
+ * suíte de testes via TestDb). A decisão de PERMITIR sqlite (e de exigir
+ * `mysql` fora disso) é tomada centralmente por
+ * `HotRadar\Support\EnvironmentValidator`, chamada por `App::bootOrFail()`
+ * ANTES desta classe ser instanciada — não duplique essa regra aqui.
+ * ============================================================================
  */
 final class Connection
 {

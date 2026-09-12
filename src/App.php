@@ -30,6 +30,8 @@ use HotRadar\Score\HotScore;
 use HotRadar\Score\HotScoreConfig;
 use HotRadar\Score\HotScoreV2;
 use HotRadar\Score\HotScoreV2Config;
+use HotRadar\Support\BootFailedException;
+use HotRadar\Support\EnvironmentValidator;
 use HotRadar\Support\Http;
 
 /**
@@ -48,6 +50,45 @@ final class App
     public static function boot(array $config): self
     {
         return new self($config, new Connection($config['db']));
+    }
+
+    /**
+     * ÚNICO ponto de boot autorizado fora de testes — usado por
+     * public/index.php, public/health.php e bin/hr.php (todo comando CLI).
+     * Nenhum outro lugar do projeto deve instanciar a classe Connection
+     * diretamente ou construir a config de banco por conta própria — é
+     * assim que se garante que web, CLI, coletores, migrations e
+     * hotscore:shadow-v2 SEMPRE resolvem exatamente a mesma configuração e
+     * passam pela mesma validação (auditoria de 2026-09-11: "split-brain").
+     *
+     * Fail-fast: se a config for inválida para o ambiente (fora de `local`),
+     * ou se a conexão real falhar, lança BootFailedException ANTES de
+     * qualquer tentativa de usar o banco — nunca cria arquivo SQLite, nunca
+     * roda migration, nunca segue adiante. Quem chama isto DEVE tratar a
+     * exceção como falha definitiva (HTTP 503 / exit != 0), nunca ignorá-la.
+     *
+     * @param array<string,mixed> $config
+     * @param string $context 'web' | 'cli' | 'health' — só para log, nunca muda comportamento
+     * @throws BootFailedException
+     */
+    public static function bootOrFail(array $config, string $context): self
+    {
+        $safeCtx = EnvironmentValidator::safeContext($config) + ['context' => $context];
+
+        $problems = EnvironmentValidator::validate($config);
+        if ($problems !== []) {
+            error_log('[HOTRADAR][boot][' . $context . '] configuração inválida: '
+                . implode('; ', $problems) . ' | ' . json_encode($safeCtx, JSON_UNESCAPED_UNICODE));
+            throw BootFailedException::configInvalid($problems, $safeCtx);
+        }
+
+        try {
+            return self::boot($config);
+        } catch (\Throwable $e) {
+            error_log('[HOTRADAR][boot][' . $context . '] falha de conexão: ' . $e->getMessage()
+                . ' | ' . json_encode($safeCtx, JSON_UNESCAPED_UNICODE));
+            throw BootFailedException::connectionFailed($e, $safeCtx);
+        }
     }
 
     public function migrator(): Migrator
