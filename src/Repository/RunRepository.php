@@ -63,6 +63,16 @@ final class RunRepository
         return $this->db->all("SELECT * FROM hr_collection_runs ORDER BY started_at DESC LIMIT $limit");
     }
 
+    /**
+     * Total REAL de coletas registradas (COUNT(*), sem limite). Não confundir
+     * com count(recent($n)) — que satura em $n e não é um total de verdade.
+     * Usado pelo card "Coletas registradas" do dashboard.
+     */
+    public function countAll(): int
+    {
+        return (int) ($this->db->first('SELECT COUNT(*) n FROM hr_collection_runs')['n'] ?? 0);
+    }
+
     /** @return array<string,mixed>|null */
     public function find(int $id): ?array
     {

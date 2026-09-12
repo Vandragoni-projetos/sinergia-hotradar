@@ -225,6 +225,32 @@ final class Actions
         self::redirect('?r=radars&flash=' . rawurlencode($flash));
     }
 
+    // ------------------------------------------------------- reset global ("zerar tudo")
+
+    /**
+     * "Zerar tudo" — reset GLOBAL, ação SEPARADA de excluir/limpar radar
+     * (ver HotRadar\System\SystemResetService). Exige o texto exato
+     * "ZERAR TUDO" digitado pelo usuário — qualquer outra coisa e NADA é apagado.
+     */
+    public static function systemReset(App $app): void
+    {
+        if (($_POST['confirm'] ?? '') !== 'ZERAR TUDO') {
+            self::redirect('?r=system.reset&flash=' . rawurlencode('Confirmação inválida — nada foi apagado. Digite exatamente "ZERAR TUDO".'));
+            return;
+        }
+        $done = $app->systemReset()->factoryReset('humano:painel');
+        $flash = sprintf(
+            'Sistema zerado: %d produto(s), %d snapshot(s), %d associação(ões), %d evento(s) editorial(is), %d coleta(s) e %d radar(es) removidos. Configurações, autenticação e o histórico de auditoria foram preservados.',
+            $done['hr_products'],
+            $done['hr_product_snapshots'],
+            $done['hr_product_radars'],
+            $done['hr_editorial_events'],
+            $done['hr_collection_runs'],
+            $done['hr_radars'],
+        );
+        self::redirect('?r=dashboard&flash=' . rawurlencode($flash));
+    }
+
     // --------------------------------------------------------------- settings
 
     public static function settingsGeneral(App $app): void

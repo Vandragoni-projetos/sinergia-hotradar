@@ -145,6 +145,16 @@ $badge = static fn (bool $ok, string $y, string $n) =>
     <a class="btn" href="?r=hotscore.compare">Comparar Hot Score V1 × V2</a>
   </div>
 
+  <div class="opt danger" style="max-width:820px;margin-top:14px">
+    <h2 style="margin-top:0">⚠️ Zerar tudo</h2>
+    <p class="muted" style="font-size:12px;margin:0 0 8px">
+      Apaga TODOS os radares, produtos, snapshots, associações, eventos editoriais e coletas registradas —
+      para começar uma rodada completamente nova. É uma ação diferente e SEPARADA de excluir/limpar um radar
+      específico. Configurações, autenticação e o histórico de auditoria são preservados.
+    </p>
+    <a class="btn danger" href="?r=system.reset" style="background:var(--danger);color:#fff;border-color:transparent">Zerar tudo</a>
+  </div>
+
   <div class="panel" style="max-width:820px;margin-top:14px">
     <h2 style="margin-top:0">Audit log (configurações)</h2>
     <table class="hist">

@@ -31,6 +31,7 @@ final class Screens
             'status' => $products->statusDistribution(),
             'by_radar' => $app->reports()->byRadar(),
             'runs' => $app->runs()->recent(12),
+            'runs_total' => $app->runs()->countAll(), // total REAL — não usar count($runs), que satura em 12
             'collectors' => self::collectorStatuses($app),
             'radars' => $app->radars()->all(),
         ], 'Dashboard');
@@ -249,6 +250,18 @@ final class Screens
             'active_version' => $app->hotScoreActiveVersion(),
             'v2_config' => $app->hotScoreV2Config(),
         ], 'Hot Score V1 × V2 (diagnóstico)');
+    }
+
+    /**
+     * "Zerar tudo" — tela de impacto (GET), SEPARADA da exclusão/limpeza de
+     * radar. Só leitura — mostra o que seria apagado, nada muda aqui.
+     */
+    public static function systemResetImpact(App $app): void
+    {
+        View::page('system/reset', [
+            'active' => 'config',
+            'impact' => $app->systemReset()->impact(),
+        ], 'Zerar tudo — SINERGIA HOTRADAR');
     }
 
     public static function analyze(App $app): void
