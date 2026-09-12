@@ -8,13 +8,27 @@ declare(strict_types=1);
 require dirname(__DIR__) . '/config/bootstrap.php';
 
 use HotRadar\App;
+use HotRadar\Support\BootFailedException;
 use HotRadar\Web\Actions;
 use HotRadar\Web\Auth;
 use HotRadar\Web\Screens;
 use HotRadar\Web\View;
 
 $config = hr_config();
-$app = App::boot($config);
+
+// Fail-fast (E2/E4, auditoria 2026-09-11): se a config de banco for inválida
+// para o ambiente, ou a conexão real falhar, a aplicação PARA AQUI — nunca
+// cria SQLite, nunca roda migration, nunca segue para rotas/telas. O detalhe
+// (sem senha) já foi para o error_log dentro de App::bootOrFail().
+try {
+    $app = App::bootOrFail($config, 'web');
+} catch (BootFailedException) {
+    http_response_code(503);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo "Serviço indisponível: falha de configuração ou conexão com o banco.\n";
+    echo "Detalhes registrados no log do servidor. Nenhuma ação foi tomada.\n";
+    exit;
+}
 
 Auth::boot($config['panel']);
 

@@ -23,6 +23,7 @@ use HotRadar\App;
 use HotRadar\Collector\CollectorContext;
 use HotRadar\Model\ProductHydrator;
 use HotRadar\Radar\Radar;
+use HotRadar\Support\BootFailedException;
 
 $argvv = $argv;
 array_shift($argvv);
@@ -39,7 +40,18 @@ foreach ($argvv as $arg) {
     }
 }
 
-$app = App::boot(hr_config());
+// Fail-fast (E2/E4, auditoria 2026-09-11): mesmíssima validação central da
+// web (App::bootOrFail) — garante que NENHUM comando CLI (migrate, coleta,
+// hotscore:shadow-v2, stats, test...) rode contra uma config inválida ou
+// contra um banco diferente do que a aplicação web está usando. Se falhar,
+// termina com exit != 0, sem tentar sqlite, sem rodar nada.
+try {
+    $app = App::bootOrFail(hr_config(), 'cli');
+} catch (BootFailedException $e) {
+    fwrite(STDERR, 'ERRO DE CONFIGURAÇÃO/CONEXÃO: ' . $e->getMessage() . PHP_EOL);
+    fwrite(STDERR, 'Detalhes (sem senha): ' . json_encode($e->context, JSON_UNESCAPED_UNICODE) . PHP_EOL);
+    exit(1);
+}
 
 function line(string $s = ''): void
 {
