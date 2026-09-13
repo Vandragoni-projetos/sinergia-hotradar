@@ -52,6 +52,36 @@ T::ok($okEnum, 'sales_signal sempre no enum ou null');
 $comRank = array_filter($items, static fn (NormalizedProduct $p) => $p->rankPosition !== null);
 T::ok(count($comRank) >= 5, 'capturou posição/rank (' . count($comRank) . ')');
 
+// -------- ml_badges (widget_components) --------
+$allBadges = [];
+foreach ($items as $p) {
+    foreach ((array) ($p->marketplaceExtra['ml_badges'] ?? []) as $b) {
+        $allBadges[] = $b;
+    }
+}
+T::ok(in_array('MAIS VENDIDO', $allBadges, true), 'capturou selo MAIS VENDIDO do widget_components');
+T::ok(in_array('OFERTA DO DIA', $allBadges, true), 'capturou selo OFERTA DO DIA do widget_components');
+T::ok(in_array('OFERTA IMPERDÍVEL', $allBadges, true), 'token de ícone removido, sobrou texto limpo OFERTA IMPERDÍVEL');
+T::ok(in_array('OFERTA RELÂMPAGO', $allBadges, true), 'label só-ícone (icon_thunder) mapeado para OFERTA RELÂMPAGO');
+$semChaves = true;
+foreach ($allBadges as $b) {
+    if (str_contains($b, '{') || str_contains($b, '}')) {
+        $semChaves = false;
+    }
+}
+T::ok($semChaves, 'nenhum badge sobrou com token de ícone cru ({...})');
+foreach ($items as $p) {
+    $badges = (array) ($p->marketplaceExtra['ml_badges'] ?? []);
+    T::eq(count($badges), count(array_unique($badges)), 'ml_badges sem duplicidade em ' . $p->marketplaceProductId);
+}
+// produto sem nenhum widget_components não deve ter a chave (fica ausente, não [])
+$semBadge = array_filter($items, static fn (NormalizedProduct $p) => !array_key_exists('ml_badges', $p->marketplaceExtra));
+T::ok(count($semBadge) >= 0, 'produtos sem selo não forçam ml_badges vazio no extra (sanity, sempre passa)');
+
+// itens já capturam item_id e catalog_id separados (usado pela ficha do produto)
+$comCatalogId = array_filter($items, static fn (NormalizedProduct $p) => !empty($p->marketplaceExtra['ml_catalog_id']));
+T::ok(count($comCatalogId) >= 1, 'capturou ml_catalog_id separado do ml_item_id em ao menos 1 produto');
+
 // extractCtxJson tolera lixo
 T::eq(null, OfertasJsonParser::extractCtxJson('<html>sem json</html>'), 'extractCtxJson retorna null sem marcador');
 
@@ -70,6 +100,7 @@ T::eq(false, $fp->hasVideo, 'fallback NÃO inventa vídeo (sempre false)');
 T::eq(null, $fp->rankPosition, 'fallback NÃO inventa rank');
 T::eq(null, $fp->salesSignal, 'fallback NÃO inventa sinal de vendas');
 T::eq(null, $fp->rating, 'fallback NÃO inventa avaliação');
+T::ok(!array_key_exists('ml_badges', $fp->marketplaceExtra), 'fallback HTML NÃO seta ml_badges (nem vazio) — preserva o merge de gaps');
 T::ok($fp->priceCurrent === null || $fp->priceCurrent > 0, 'preço positivo ou null (nunca 0 falso)');
 
 // página realmente vazia → não ok, motivo de bloqueio

@@ -37,8 +37,16 @@ final class Screens
         ], 'Dashboard');
     }
 
+    /** Whitelist de ordenação aceita pela Curadoria — valor fora daqui cai no padrão. */
+    private const SORT_OPTIONS = ['hot_desc', 'hot_asc'];
+    private const DEFAULT_SORT = 'hot_desc';
+
     public static function products(App $app): void
     {
+        $sort = (string) ($_GET['sort'] ?? '');
+        if (!in_array($sort, self::SORT_OPTIONS, true)) {
+            $sort = self::DEFAULT_SORT;
+        }
         $filters = [
             'radar' => $_GET['radar'] ?? '',
             'marketplace' => $_GET['marketplace'] ?? '',
@@ -50,6 +58,7 @@ final class Screens
             'min_rating' => $_GET['min_rating'] ?? '',
             'discovered_since' => $_GET['discovered_since'] ?? '',
             'q' => $_GET['q'] ?? '',
+            'sort' => $sort,
             'limit' => 300,
         ];
         $rows = $app->products()->search(array_filter($filters, static fn ($v) => $v !== ''));
