@@ -17,11 +17,15 @@ $user = Auth::currentUser();
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= View::e($title) ?> · SINERGIA HOTRADAR</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/img/favicon-180.png">
 <link rel="stylesheet" href="/assets/app.css">
 </head>
 <body>
 <div class="topbar">
-  <div class="brand">SINERGIA <span>HOTRADAR</span></div>
+  <div class="brand">
+    <img src="/assets/img/logo-hotradar.png" alt="Sinergia HotRadar" class="brand-logo">
+  </div>
   <nav class="nav">
     <?php foreach ($nav as $key => [$href, $label]): ?>
       <a href="<?= $href ?>" class="<?= $active === $key ? 'active' : '' ?>"><?= $label ?></a>
