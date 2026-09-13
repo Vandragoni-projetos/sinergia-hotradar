@@ -31,7 +31,8 @@ final class Screens
             'status' => $products->statusDistribution(),
             'by_radar' => $app->reports()->byRadar(),
             'runs' => $app->runs()->recent(12),
-            'runs_total' => $app->runs()->countAll(), // total REAL — não usar count($runs), que satura em 12
+            'runs_total' => $app->runs()->countActive(), // operacional: radares existentes + sem radar (não infla com radar excluído)
+            'runs_total_historico' => $app->runs()->countAll(), // total bruto real, incluindo radares já excluídos
             'collectors' => self::collectorStatuses($app),
             'radars' => $app->radars()->all(),
         ], 'Dashboard');

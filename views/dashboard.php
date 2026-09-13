@@ -5,8 +5,9 @@ use HotRadar\Editorial\EditorialStatus;
  * @var int $total @var int $today @var int $with_video @var int $snapshots
  * @var array<string,int> $faixa @var array<string,int> $status
  * @var array<int,array{key:string,n:int}> $by_radar
- * @var array<int,array<string,mixed>> $runs
- * @var int $runs_total total real de hr_collection_runs (não confundir com count($runs), que satura em 12)
+ * @var array<int,array<string,mixed>> $runs cada linha inclui radar_existe (1/0)
+ * @var int $runs_total coletas OPERACIONAIS (radar existe ou nunca teve radar) — não confundir com count($runs), que satura em 12
+ * @var int $runs_total_historico total bruto real de hr_collection_runs, incluindo radares já excluídos
  * @var array<int,array{marketplace:string,available:bool,reason:?string,label:string}> $collectors
  * @var array<int,\HotRadar\Radar\Radar> $radars
  */
@@ -20,7 +21,11 @@ $ativos = array_filter($radars, static fn ($r) => $r->enabled && $r->hasMarketpl
   <div class="stat"><div class="k">Produtos monitorados</div><div class="v"><?= $total ?></div></div>
   <div class="stat"><div class="k">Descobertos hoje</div><div class="v"><?= $today ?></div></div>
   <div class="stat"><div class="k">🎬 Com vídeo</div><div class="v"><?= $with_video ?></div></div>
-  <div class="stat"><div class="k">Coletas registradas</div><div class="v"><?= $runs_total ?></div></div>
+  <div class="stat"><div class="k">Coletas registradas</div><div class="v"><?= $runs_total ?></div>
+    <?php if ($runs_total_historico > $runs_total): ?>
+      <div class="muted" style="font-size:11px">Histórico total (com radares já excluídos): <?= $runs_total_historico ?></div>
+    <?php endif; ?>
+  </div>
 </div>
 
 <h2>Classificação dos produtos</h2>
@@ -112,7 +117,12 @@ $ativos = array_filter($radars, static fn ($r) => $r->enabled && $r->hasMarketpl
     ?>
       <tr>
         <td><?= View::ago($run['started_at']) ?></td>
-        <td><?= View::e($run['radar_slug'] ?? '—') ?></td>
+        <td>
+          <?= View::e($run['radar_slug'] ?? '—') ?>
+          <?php if ($run['radar_slug'] && !(int) ($run['radar_existe'] ?? 1)): ?>
+            <span class="muted" style="font-size:11px"> — excluído</span>
+          <?php endif; ?>
+        </td>
         <td>
           <?= $run['status'] === 'ok'
               ? '<span class="badge" style="background:var(--ok);color:#fff;border-color:transparent">OK</span>'
