@@ -88,6 +88,18 @@ final class ProductRepository
     }
 
     /**
+     * Ordenações permitidas na Curadoria. Whitelist fixa — nunca interpolar
+     * $filters['sort'] direto no SQL. Valor desconhecido/ausente cai no padrão
+     * (hot_desc), que é o comportamento histórico preservado.
+     */
+    private const SORTS = [
+        'hot_desc' => '(hot_score IS NULL) ASC, hot_score DESC, discovered_at DESC',
+        'hot_asc'  => '(hot_score IS NULL) ASC, hot_score ASC, discovered_at DESC',
+    ];
+
+    private const DEFAULT_SORT = 'hot_desc';
+
+    /**
      * Listagem para o painel de curadoria com filtros.
      * @param array<string,mixed> $filters
      * @return array<int,array<string,mixed>>
@@ -95,9 +107,15 @@ final class ProductRepository
     public function search(array $filters): array
     {
         [$where, $params] = $this->buildWhere($filters);
-        $order = 'ORDER BY (hot_score IS NULL) ASC, hot_score DESC, discovered_at DESC';
+        $order = 'ORDER BY ' . self::resolveSort((string) ($filters['sort'] ?? ''));
         $limit = (int) ($filters['limit'] ?? 200);
         return $this->db->all("SELECT * FROM hr_products $where $order LIMIT $limit", $params);
+    }
+
+    /** Resolve a chave de sort pública para a expressão SQL, via whitelist fixa. */
+    private static function resolveSort(string $sort): string
+    {
+        return self::SORTS[$sort] ?? self::SORTS[self::DEFAULT_SORT];
     }
 
     /** @param array<string,mixed> $filters */

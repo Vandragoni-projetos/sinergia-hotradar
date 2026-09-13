@@ -16,7 +16,7 @@ $qs = static function (array $over) use ($filters): string {
         'radar' => $filters['radar'], 'marketplace' => $filters['marketplace'], 'faixa' => $filters['faixa'],
         'status' => $filters['status'], 'category' => $filters['category'],
         'has_video' => $filters['has_video'], 'min_discount' => $filters['min_discount'],
-        'min_rating' => $filters['min_rating'], 'q' => $filters['q'],
+        'min_rating' => $filters['min_rating'], 'q' => $filters['q'], 'sort' => $filters['sort'] ?? '',
     ], static fn ($v) => $v !== '');
     return '?r=products&' . http_build_query(array_merge($base, $over));
 };
@@ -48,6 +48,12 @@ $radarQs = $filters['radar'] ? '&radar=' . rawurlencode((string) $filters['radar
       <option value="">todos</option>
       <option value="mercado_livre" <?= $filters['marketplace']==='mercado_livre'?'selected':'' ?>>Mercado Livre</option>
       <option value="shopee" <?= $filters['marketplace']==='shopee'?'selected':'' ?>>Shopee</option>
+    </select>
+  </div>
+  <div class="f"><label>Ordenar por</label>
+    <select name="sort">
+      <option value="hot_desc" <?= ($filters['sort'] ?? 'hot_desc')==='hot_desc'?'selected':'' ?>>Hot Score — maior para menor</option>
+      <option value="hot_asc" <?= ($filters['sort'] ?? '')==='hot_asc'?'selected':'' ?>>Hot Score — menor para maior</option>
     </select>
   </div>
   <div class="f"><label>Nicho</label>

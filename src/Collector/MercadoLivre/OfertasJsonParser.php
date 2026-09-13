@@ -91,6 +91,7 @@ final class OfertasJsonParser
         }
 
         $components = is_array($card['components'] ?? null) ? $card['components'] : [];
+        $widgetComponents = is_array($card['widget_components'] ?? null) ? $card['widget_components'] : [];
 
         // título
         $titleComp = Arr::firstOfType($components, 'title');
@@ -119,6 +120,9 @@ final class OfertasJsonParser
         // vendedor / loja oficial
         [$sellerName, $officialStore] = $this->parseSeller($components);
 
+        // selos visuais do ML (MAIS VENDIDO, OFERTA DO DIA, OFERTA IMPERDÍVEL...)
+        $badges = $this->parseBadges($widgetComponents);
+
         // rank / posição
         $rank = isset($item['position']) && is_numeric($item['position']) ? (int) $item['position'] : null;
 
@@ -145,6 +149,7 @@ final class OfertasJsonParser
             'ml_item_id' => $itemId,
             'ml_catalog_id' => $catalogId,
             'ml_user_product_id' => isset($meta['user_product_id']) ? (string) $meta['user_product_id'] : null,
+            'ml_badges' => $badges !== [] ? $badges : null,
             'seller' => $sellerName,
             'official_store' => $officialStore,
             'promotion_type' => $promoType,
@@ -421,6 +426,65 @@ final class OfertasJsonParser
             }
         }
         return [$name, $official];
+    }
+
+    /**
+     * Mapeia ícone-sem-texto conhecido → rótulo legível, para o caso em que o
+     * label do selo é só um ícone (ex.: "{icon_thunder}", sem texto ao lado).
+     * Ícone desconhecido é descartado silenciosamente (não vira "{token}" cru na UI).
+     */
+    private const ICON_ONLY_LABELS = [
+        'icon_thunder' => 'OFERTA RELÂMPAGO',
+    ];
+
+    /**
+     * Selos visuais que o próprio Mercado Livre desenha sobre o card
+     * (MAIS VENDIDO, OFERTA DO DIA, OFERTA IMPERDÍVEL...), vindos de
+     * card.widget_components[].poly_label_component.labels[].text.
+     * Percorre todos os componentes e todos os labels (nunca só o primeiro),
+     * remove tokens de ícone tipo "{black_friday_icon}" do texto, mapeia
+     * labels que são só ícone (sem texto) via ICON_ONLY_LABELS, e deduplica.
+     * @param array<int,mixed> $widgetComponents
+     * @return array<int,string>
+     */
+    private function parseBadges(array $widgetComponents): array
+    {
+        $badges = [];
+        foreach ($widgetComponents as $wc) {
+            if (!is_array($wc)) {
+                continue;
+            }
+            $labels = Arr::get($wc, 'poly_label_component.labels', []);
+            if (!is_array($labels)) {
+                continue;
+            }
+            foreach ($labels as $label) {
+                if (!is_array($label)) {
+                    continue;
+                }
+                $raw = trim((string) ($label['text'] ?? ''));
+                if ($raw === '') {
+                    continue;
+                }
+                $clean = trim((string) preg_replace('/\{[a-z0-9_]+\}/i', '', $raw));
+                $clean = trim((string) preg_replace('/\s+/', ' ', $clean));
+                if ($clean !== '') {
+                    $badges[] = $clean;
+                    continue;
+                }
+                // texto era só um ícone (ex.: "{icon_thunder}") — tenta mapear pela key conhecida
+                $iconKey = (string) Arr::get($label, 'values.0.key', '');
+                if ($iconKey === '') {
+                    $iconKey = (string) Arr::get($label, 'values.0.icon.key', '');
+                }
+                $mapped = self::ICON_ONLY_LABELS[$iconKey] ?? null;
+                if ($mapped !== null) {
+                    $badges[] = $mapped;
+                }
+                // ícone desconhecido sem texto: descarta silenciosamente, não quebra o parsing
+            }
+        }
+        return array_values(array_unique($badges));
     }
 
     // ------------------------------------------------------------------- helpers

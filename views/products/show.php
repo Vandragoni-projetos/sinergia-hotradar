@@ -126,12 +126,15 @@ $radNomes = implode(', ', array_map(static fn ($r) => $r['name'], $product_radar
     <details class="tech">
       <summary>Detalhes técnicos (para diagnóstico)</summary>
       <div class="kv" style="font-size:13px">
-        <div>ID do marketplace</div><div><?= View::e($p['marketplace_product_id']) ?></div>
+        <div>ID do marketplace (dedup)</div><div><?= View::e($p['marketplace_product_id']) ?></div>
+        <div>Item ID (anúncio)</div><div><?= !empty($extra['ml_item_id']) ? View::e($extra['ml_item_id']) : '—' ?></div>
+        <div>Catalog Product ID</div><div><?= !empty($extra['ml_catalog_id']) ? View::e($extra['ml_catalog_id']) : '—' ?></div>
         <div>Categoria de origem</div><div><?= View::e($extra['source_category_label'] ?? '—') ?></div>
         <div>Aderência ao nicho</div><div><?= View::e($extra['niche_confidence'] ?? '—') ?></div>
         <div>Posição/ranking</div><div><?= $p['rank_position'] !== null ? '#' . (int) $p['rank_position'] : '—' ?></div>
         <div>Campanha (código)</div><div><?= View::e($p['campaign'] ?? '—') ?></div>
         <div>Sinais especiais</div><div><?= $signals ? View::e(implode(', ', $signals)) : '—' ?></div>
+        <div>Selos do Mercado Livre</div><div><?= !empty($extra['ml_badges']) ? View::e(implode(', ', $extra['ml_badges'])) : '—' ?></div>
         <div>Comissão</div><div><?= $p['commission_pct'] !== null ? $p['commission_pct'] . '%' : '—' ?></div>
         <div>URL afiliada</div><div><?= $p['url_affiliate'] ? View::e($p['url_affiliate']) : '— (fase posterior)' ?></div>
         <div>Origem da coleta</div><div><?= View::e($p['data_quality']) ?> · <?= View::e($p['source']) ?></div>

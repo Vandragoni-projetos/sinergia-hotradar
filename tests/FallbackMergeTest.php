@@ -49,6 +49,7 @@ $rich = new NormalizedProduct(
     specialSignals: ['best_seller_candidate', 'deal_of_the_day', 'has_published_clips'],
     hasVideo: true, campaign: 'DEAL_OF_THE_DAY',
     dataQuality: 'scrape_json', source: 'ofertas_ml', nicheConfidence: 'alta',
+    marketplaceExtra: ['ml_badges' => ['MAIS VENDIDO']],
 );
 $fake->out = [$rich];
 $discovery->run($fake, new CollectorContext());
@@ -91,6 +92,8 @@ T::eq('699.9', (string) (float) $row2['price_previous'], 'price_previous PRESERV
 T::eq('DEAL_OF_THE_DAY', (string) $row2['campaign'], 'campaign PRESERVADO');
 $sig = json_decode((string) $row2['special_signals'], true);
 T::ok(in_array('has_published_clips', $sig, true), 'special_signals PRESERVADOS');
+$extra2 = json_decode((string) $row2['marketplace_extra'], true) ?: [];
+T::ok(in_array('MAIS VENDIDO', (array) ($extra2['ml_badges'] ?? []), true), 'ml_badges PRESERVADO após coleta degradada (fallback não apaga selo válido)');
 T::eq('scrape_json', (string) $row2['data_quality'], 'data_quality mantém a MELHOR fidelidade conhecida (scrape_json)');
 
 // HOT SCORE não despencou por causa do fallback
