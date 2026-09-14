@@ -226,7 +226,7 @@ final class App
 
     public function openAiConfig(): OpenAiConfig
     {
-        return new OpenAiConfig();
+        return new OpenAiConfig($this->settings());
     }
 
     public function openAiClient(): OpenAiClient

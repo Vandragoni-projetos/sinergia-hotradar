@@ -87,6 +87,8 @@ try {
             'radar.collect'    => Actions::radarCollect($app),
             'settings.general' => Actions::settingsGeneral($app),
             'settings.shopee'  => Actions::settingsShopee($app),
+            'settings.openai'  => Actions::settingsOpenAi($app),
+            'openai.test'      => Actions::openaiTest($app),
             'hotscore.save'    => Actions::hotscoreSave($app),
             'hotscore.reset'   => Actions::hotscoreReset($app),
             'report.ai'        => Actions::reportAi($app),

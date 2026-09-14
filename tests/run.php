@@ -53,6 +53,7 @@ foreach ([
     'AuthTest', 'RadarLifecycleTest', 'ExportAndAnalyzeTest', 'MigrationManualRadarTest',
     'HotScoreV2Test', 'EnvironmentValidationTest', 'HealthCheckTest', 'SystemResetServiceTest',
     'ProductSortTest', 'RunRepositoryOrphanTest',
+    'OpenAiConfigSettingsTest', 'OpenAiConnectionTest',
 ] as $suite) {
     require __DIR__ . '/' . $suite . '.php';
 }
