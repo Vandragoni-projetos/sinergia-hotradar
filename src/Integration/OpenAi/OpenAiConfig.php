@@ -39,14 +39,15 @@ final class OpenAiConfig
     }
 
     /**
-     * Uso da IA ligado/desligado (não secreto, editável na UI). Default TRUE
-     * quando nunca foi salvo — preserva o comportamento histórico (só a chave
-     * decidia se a IA rodava) até que alguém desligue explicitamente.
+     * Uso da IA ligado/desligado (não secreto, editável na UI). Default FALSE
+     * quando hr_settings['openai'] nunca foi salvo — a presença da API Key
+     * só significa "Configurada"; a IA só fica "Ativa" depois que alguém
+     * marcar o toggle explicitamente em Configurações e salvar.
      */
     public function enabled(): bool
     {
         $s = $this->settingsData();
-        return array_key_exists('enabled', $s) ? (bool) $s['enabled'] : true;
+        return array_key_exists('enabled', $s) ? (bool) $s['enabled'] : false;
     }
 
     /**

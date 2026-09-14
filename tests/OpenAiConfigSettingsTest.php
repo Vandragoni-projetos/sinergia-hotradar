@@ -18,17 +18,23 @@ foreach (['OPENAI_API_KEY', 'OPENAI_MODEL'] as $k) {
     unset($_ENV[$k], $_SERVER[$k]);
 }
 
-// ---- sem settings salvo: comportamento default preservado (enabled=true) ----
+// ---- sem settings salvo: default é DESATIVADO (chave sozinha não ativa a IA) ----
 $oc = new OpenAiConfig($settings);
-T::ok($oc->enabled() === true, 'sem settings salvo: enabled() default true (preserva comportamento histórico)');
-T::ok($oc->isConfigured() === false, 'sem chave: isConfigured() false mesmo com enabled=true');
+T::ok($oc->enabled() === false, 'hr_settings[openai] nunca salvo: enabled() default FALSE');
+T::ok($oc->isConfigured() === false, 'sem chave e sem ativação: isConfigured() false');
 T::eq('Não configurada', $oc->statusLabel(), 'sem chave: status da chave = "Não configurada"');
 
-// ---- chave presente, nada desativado ainda: usa normalmente ----
+// ---- chave presente, mas NUNCA ativada explicitamente: continua desativada ----
 putenv('OPENAI_API_KEY=sk-teste-fake-nao-usada-em-rede');
 $oc2 = new OpenAiConfig($settings);
-T::ok($oc2->isConfigured() === true, 'com chave e sem settings: isConfigured() true (default enabled)');
-T::eq('Configurada · modelo gpt-4o-mini', $oc2->statusLabel(), 'status mostra chave configurada + modelo default');
+T::ok($oc2->enabled() === false, 'com chave mas hr_settings[openai] ainda não salvo: enabled() continua FALSE');
+T::ok($oc2->isConfigured() === false, 'com chave mas NUNCA ativada: isConfigured() false — chave sozinha não liga a IA');
+T::eq('Configurada · modelo gpt-4o-mini', $oc2->statusLabel(), 'status da CHAVE já mostra "Configurada" mesmo sem ninguém ter ativado o uso ainda');
+
+// ---- usuário ativa explicitamente pela primeira vez ----
+$settings->set('openai', ['enabled' => true, 'model' => '']);
+$oc2b = new OpenAiConfig($settings);
+T::ok($oc2b->isConfigured() === true, 'depois que o usuário marca o toggle e salva: isConfigured() true');
 
 // ---- desativa explicitamente via settings (não secreto) ----
 $settings->set('openai', ['enabled' => false, 'model' => '']);

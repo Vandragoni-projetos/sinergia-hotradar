@@ -62,12 +62,30 @@ T::ok($r['ok'] === false, 'summarize falha sem chave');
 T::ok(str_contains((string) $r['error'], 'OPENAI_API_KEY'), 'erro instrui a definir a variável');
 T::eq(null, $r['text'], 'nenhum texto retornado');
 
-// ---- OpenAI com modelo custom ----
+// ---- OpenAI com chave, mas SEM nunca ter salvo hr_settings['openai'] ----
+// default é enabled=false: a chave só significa "Configurada", a IA não fica
+// "Ativa" sozinha — exige que alguém marque o toggle explicitamente e salve.
 putenv('OPENAI_API_KEY=sk-teste');
 putenv('OPENAI_MODEL=gpt-4.1-mini');
-$oc2 = new OpenAiConfig();
-T::ok($oc2->isConfigured(), 'com OPENAI_API_KEY → configurada');
-T::eq('gpt-4.1-mini', $oc2->model(), 'modelo custom respeitado');
+$oc2 = new OpenAiConfig($settings);
+T::eq('Configurada · modelo gpt-4.1-mini', $oc2->statusLabel(), 'com chave: status da CHAVE é "Configurada" (independente do toggle)');
+T::ok($oc2->enabled() === false, 'hr_settings[openai] nunca salvo → enabled() default FALSE');
+T::ok($oc2->isConfigured() === false, 'com chave mas NUNCA ativada explicitamente → isConfigured() false (IA não fica ativa sozinha)');
+T::eq('gpt-4.1-mini', $oc2->model(), 'modelo custom (env) respeitado mesmo desativada');
+
+// ---- só fica "Ativa" depois que o usuário marca o toggle explicitamente e salva ----
+$settings->set('openai', ['enabled' => true, 'model' => '']);
+$oc3 = new OpenAiConfig($settings);
+T::ok($oc3->isConfigured() === true, 'após ativar explicitamente em hr_settings: isConfigured() true');
+
+// ---- desativa de novo: "Testar conexão" continua possível (chave presente) ----
+// (testConnection() só olha apiKeyPresent(), nunca enabled() — cobertura completa
+// de sucesso/erro/rede via fake fica em tests/OpenAiConnectionTest.php)
+$settings->set('openai', ['enabled' => false, 'model' => '']);
+$ocDisabled = new OpenAiConfig($settings);
+T::ok($ocDisabled->isConfigured() === false, 'setup: desativada de novo');
+T::ok($ocDisabled->apiKeyPresent() === true, 'setup: chave continua presente (testConnection() poderia rodar)');
+
 putenv('OPENAI_API_KEY');
 putenv('OPENAI_MODEL');
 
