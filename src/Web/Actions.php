@@ -272,6 +272,33 @@ final class Actions
         self::redirect('?r=config&sub=shopee&flash=' . rawurlencode('Status da Shopee atualizado.'));
     }
 
+    /**
+     * Salva SÓ configuração não secreta da OpenAI (ativado/modelo) em hr_settings.
+     * A API Key NUNCA passa por aqui — só existe em Environment (OPENAI_API_KEY),
+     * este form não tem (e não deve ganhar) campo para ela.
+     */
+    public static function settingsOpenAi(App $app): void
+    {
+        $enabled = !empty($_POST['enabled']);
+        $model = mb_substr(trim((string) ($_POST['model'] ?? '')), 0, 100);
+        $app->settings()->set('openai', ['enabled' => $enabled, 'model' => $model]);
+        self::redirect('?r=config&sub=ia&flash=' . rawurlencode('Configuração de IA salva.'));
+    }
+
+    /**
+     * "Testar conexão": chama a OpenAI de verdade (se a chave existir), mas
+     * NUNCA recebe/exibe a chave nem o corpo bruto da resposta — só um
+     * resultado ok/erro genérico, via flash message.
+     */
+    public static function openaiTest(App $app): void
+    {
+        $res = $app->openAiClient()->testConnection();
+        $msg = $res['ok']
+            ? 'Conexão com a OpenAI OK.'
+            : ('Falha no teste de conexão: ' . ($res['error'] ?? 'erro desconhecido.'));
+        self::redirect('?r=config&sub=ia&flash=' . rawurlencode($msg));
+    }
+
     // --------------------------------------------------------------- hot score
 
     public static function hotscoreSave(App $app): void

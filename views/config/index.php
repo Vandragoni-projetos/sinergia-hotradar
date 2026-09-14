@@ -74,16 +74,48 @@ $badge = static fn (bool $ok, string $y, string $n) =>
 <?php elseif ($sub === 'ia'): ?>
   <div class="panel" style="max-width:720px">
     <h2 style="margin-top:0">Inteligência Artificial (opcional)</h2>
-    <p>Situação: <strong><?= $openai_configured ? 'Configurada' : 'Não configurada' ?></strong>
-      <?= $openai_configured ? ' <span class="muted">· modelo ' . View::e($openai_model) . '</span>' : '' ?></p>
+    <p>Chave de API: <strong><?= $openai_key_present ? 'Configurada' : 'Não configurada' ?></strong>
+      <?= $openai_key_present ? ' <span class="muted">· modelo atual: ' . View::e($openai_model) . '</span>' : '' ?></p>
+    <p>Uso da IA: <strong><?= $openai_configured ? 'Ativo' : ($openai_key_present ? 'Desativado (por você)' : 'Indisponível — sem chave') ?></strong></p>
     <p>O HotRadar funciona <strong>100% sem inteligência artificial</strong>: coleta, Hot Score, curadoria, relatórios,
       exportação, análise por URL, fichas e PDF não dependem de IA.</p>
-    <p class="muted" style="font-size:13px">Quando configurada, a IA é usada <strong>apenas</strong> para escrever um resumo em linguagem natural
+    <p class="muted" style="font-size:13px">Quando ativa, a IA é usada <strong>apenas</strong> para escrever um resumo em linguagem natural
       dos relatórios. Ela <strong>nunca</strong> altera ou inventa números — o Hot Score e todos os dados continuam
-      calculados de forma fixa. A chave é definida só no servidor e nunca é exibida.</p>
-    <?php if (!$openai_configured): ?>
-      <p class="muted" style="font-size:12px">Para ativar: defina a variável <code>OPENAI_API_KEY</code> no servidor. Nenhum custo é gerado sem você clicar em "Gerar análise inteligente".</p>
+      calculados de forma fixa. A chave é definida só no servidor (variável <code>OPENAI_API_KEY</code>) e
+      <strong>nunca</strong> é exibida, salva no banco ou pedida por este formulário.</p>
+    <?php if (!$openai_key_present): ?>
+      <p class="muted" style="font-size:12px">Para habilitar: defina a variável <code>OPENAI_API_KEY</code> no servidor. Enquanto isso, ativar/testar abaixo fica bloqueado.</p>
     <?php endif; ?>
+
+    <hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+
+    <form method="post" action="?r=settings.openai">
+      <?= \HotRadar\Web\View::csrf() ?>
+      <label style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+        <input type="checkbox" name="enabled" value="1" <?= $openai_enabled ? 'checked' : '' ?> <?= !$openai_key_present ? 'disabled' : '' ?>>
+        <span>Ativar uso da IA nos relatórios</span>
+      </label>
+      <div class="f" style="margin-bottom:12px"><label>Modelo</label>
+        <select name="model" <?= !$openai_key_present ? 'disabled' : '' ?>>
+          <?php
+            $models = ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini', 'gpt-4.1'];
+            if ($openai_model !== '' && !in_array($openai_model, $models, true)) {
+                $models[] = $openai_model; // preserva um modelo custom já salvo/definido via OPENAI_MODEL
+            }
+          ?>
+          <?php foreach ($models as $m): ?>
+            <option value="<?= View::e($m) ?>" <?= $openai_model === $m ? 'selected' : '' ?>><?= View::e($m) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <button class="primary" type="submit" <?= !$openai_key_present ? 'disabled' : '' ?>>Salvar</button>
+    </form>
+
+    <form method="post" action="?r=openai.test" style="margin-top:10px">
+      <?= \HotRadar\Web\View::csrf() ?>
+      <button class="btn" type="submit" <?= !$openai_key_present ? 'disabled' : '' ?>>Testar conexão</button>
+      <span class="muted" style="font-size:12px;margin-left:8px">Faz uma chamada mínima à OpenAI para confirmar que a chave/modelo funcionam — não altera nada, não conta como uso dos relatórios.</span>
+    </form>
   </div>
 
 <?php elseif ($sub === 'seguranca'): ?>
