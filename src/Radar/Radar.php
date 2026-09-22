@@ -80,9 +80,17 @@ final class Radar
 
     /**
      * Aplica os filtros do radar a um produto normalizado.
+     *
+     * $videoFilterSupported: alguns marketplaces não informam se o produto tem
+     * vídeo (ex.: Shopee, cujo mapper sempre grava hasVideo=false — a API de
+     * afiliados não expõe isso). Passar false faz o filtro "Exigir vídeo" ser
+     * ignorado nesse coletor específico, em vez de zerar a coleta inteira por
+     * um dado que o marketplace nunca poderia satisfazer. Default true
+     * preserva exatamente o comportamento já existente (Mercado Livre).
+     *
      * @return array{ok:bool, reason:?string}
      */
-    public function accepts(NormalizedProduct $p): array
+    public function accepts(NormalizedProduct $p, bool $videoFilterSupported = true): array
     {
         $title = mb_strtolower($p->title, 'UTF-8');
 
@@ -106,7 +114,7 @@ final class Radar
             return ['ok' => false, 'reason' => 'preço > R$ ' . $this->priceMax];
         }
 
-        if ($this->requireVideo && !$p->hasVideo) {
+        if ($this->requireVideo && $videoFilterSupported && !$p->hasVideo) {
             return ['ok' => false, 'reason' => 'sem vídeo (radar exige vídeo)'];
         }
 
