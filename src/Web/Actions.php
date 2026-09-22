@@ -220,6 +220,9 @@ final class Actions
             desiredWordsMode: Radar::normalizeDesiredWordsMode(
                 is_string($_POST['desired_words_mode'] ?? null) ? $_POST['desired_words_mode'] : null
             ),
+            shopeePageStart: Radar::normalizeShopeePageStart(
+                is_numeric($_POST['shopee_page_start'] ?? null) ? (int) $_POST['shopee_page_start'] : null
+            ),
         );
 
         if ($id === null) {

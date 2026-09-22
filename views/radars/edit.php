@@ -95,6 +95,12 @@ $shopeeOnlyInitial = $shopeeChecked && !$mlChecked;
     <span class="muted" style="font-size:12px">A consulta oficial usada hoje (<code>productOfferV2</code>) não aceita filtro por palavra-chave — preencher aqui <strong>não altera</strong> o que é buscado nem filtrado. Guardado para quando/se a API passar a suportar isso.</span>
   </div>
 
+  <div class="f" style="margin:14px 0" id="section-shopee-page-start" <?= $shopeeChecked ? '' : 'hidden' ?>>
+    <label>Começar na página</label>
+    <input type="number" name="shopee_page_start" min="1" value="<?= (int) ($radar->shopeePageStart ?? 1) ?>" style="width:120px" <?= $shopeeChecked ? '' : 'disabled' ?>>
+    <span class="muted" style="font-size:12px">De onde o feed da Shopee começa a ser lido — a quantidade de páginas continua vindo de "Páginas do feed", abaixo. Ex.: início 11 + 10 páginas = páginas 11–20.</span>
+  </div>
+
   <div class="grid" style="grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px">
     <div class="f"><label id="label-pages"><?= $shopeeOnlyInitial ? 'Páginas do feed' : 'Páginas / categoria' ?></label>
       <input type="number" name="pages_per_category" min="1" max="10" value="<?= (int) ($radar->pagesPerCategory ?? 3) ?>">
@@ -129,6 +135,7 @@ $shopeeOnlyInitial = $shopeeChecked && !$mlChecked;
   var secML = document.getElementById('section-ml-categories');
   var secExtraKw = document.getElementById('section-extra-keywords');
   var secShopeeKw = document.getElementById('section-shopee-keywords');
+  var secShopeePageStart = document.getElementById('section-shopee-page-start');
   var labelPages = document.getElementById('label-pages');
   var helpPages = document.getElementById('help-pages');
   var reqVideoCb = document.getElementById('require_video_checkbox');
@@ -150,6 +157,7 @@ $shopeeOnlyInitial = $shopeeChecked && !$mlChecked;
     setSectionEnabled(secML, ml);
     setSectionEnabled(secExtraKw, ml);
     setSectionEnabled(secShopeeKw, shopee);
+    setSectionEnabled(secShopeePageStart, shopee);
 
     if (ml && shopee) {
       labelPages.textContent = 'Páginas / categoria (ML) · Páginas do feed (Shopee)';

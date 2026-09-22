@@ -127,7 +127,7 @@ T::eq(2, $afterJson['hr_products'] ?? null, 'audit log do reset registra as cont
 
 $migrationsAfter = $db->all('SELECT name FROM hr_migrations ORDER BY name');
 T::eq($migrationsBefore, $migrationsAfter, 'hr_migrations: EXATAMENTE as mesmas linhas antes/depois (nunca tocado)');
-T::eq(8, count($migrationsAfter), 'hr_migrations: continua com as 8 migrations aplicadas');
+T::eq(9, count($migrationsAfter), 'hr_migrations: continua com as 9 migrations aplicadas');
 
 // =====================================================================
 T::group('11) Atomicidade — falha no meio do reset não deixa dado parcialmente apagado');
