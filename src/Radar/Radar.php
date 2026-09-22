@@ -11,6 +11,12 @@ use HotRadar\Model\NormalizedProduct;
  */
 final class Radar
 {
+    /** Marketplaces reconhecidos pelo sistema — única lista canônica, usada na
+     *  validação de entrada (Actions::radarSave) e no despacho de coleta
+     *  (Actions::radarCollect/collectRun). Um valor fora daqui nunca é salvo
+     *  nem executado silenciosamente como se fosse outro marketplace. */
+    public const KNOWN_MARKETPLACES = ['mercado_livre', 'shopee'];
+
     /**
      * @param array<int,string>                        $marketplaces
      * @param array<int,array{id:string,label:string}> $mlCategories

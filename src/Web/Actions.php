@@ -69,31 +69,54 @@ final class Actions
             return;
         }
         $tot = ['collected' => 0, 'new' => 0, 'updated' => 0, 'filtered' => 0, 'errors' => 0];
+        $unknown = [];
         foreach ($radars as $radar) {
-            if (!$radar->hasMarketplace('mercado_livre')) {
-                continue;
+            foreach ($radar->marketplaces as $mp) {
+                $collector = self::collectorFor($app, $mp);
+                if ($collector === null) {
+                    $unknown[$mp] = true;
+                    continue;
+                }
+                try {
+                    $r = $app->discovery()->run($collector, new CollectorContext(dryRun: $dry, radar: $radar));
+                } catch (\Throwable) {
+                    // uma falha (rede, API de um marketplace) nunca pode derrubar os demais radares/marketplaces.
+                    $tot['errors']++;
+                    continue;
+                }
+                $tot['collected'] += $r['collected'];
+                $tot['new'] += $r['new'];
+                $tot['updated'] += $r['updated'];
+                $tot['filtered'] += $r['filtered'];
+                $tot['errors'] += count($r['errors']);
             }
-            $r = $app->discovery()->run(
-                $app->mercadoLivreCollector(),
-                new CollectorContext(dryRun: $dry, radar: $radar)
-            );
-            $tot['collected'] += $r['collected'];
-            $tot['new'] += $r['new'];
-            $tot['updated'] += $r['updated'];
-            $tot['filtered'] += $r['filtered'];
-            $tot['errors'] += count($r['errors']);
         }
         $flash = sprintf(
-            '%s — %d radar(es): %d coletados, %d novos, %d atualizados, %d filtrados%s',
+            '%s — %d radar(es): %d coletados, %d novos, %d atualizados, %d filtrados%s%s',
             $dry ? 'DRY-RUN' : 'Coleta',
             count($radars),
             $tot['collected'],
             $tot['new'],
             $tot['updated'],
             $tot['filtered'],
-            $tot['errors'] ? ', ' . $tot['errors'] . ' erro(s)' : ''
+            $tot['errors'] ? ', ' . $tot['errors'] . ' erro(s)' : '',
+            $unknown ? ' · marketplace desconhecido ignorado: ' . implode(', ', array_keys($unknown)) : ''
         );
         self::redirect('?r=dashboard&flash=' . rawurlencode($flash));
+    }
+
+    /**
+     * Único ponto que decide qual collector atende um marketplace. Marketplace
+     * fora de Radar::KNOWN_MARKETPLACES (ou sem match aqui) devolve null —
+     * quem chama trata isso como erro explícito, NUNCA como "usa ML então".
+     */
+    private static function collectorFor(App $app, string $marketplace): ?\HotRadar\Collector\CollectorInterface
+    {
+        return match ($marketplace) {
+            'mercado_livre' => $app->mercadoLivreCollector(),
+            'shopee' => $app->shopeeCollector(),
+            default => null,
+        };
     }
 
     public static function radarCollect(App $app): void
@@ -105,19 +128,41 @@ final class Actions
             self::redirect('?r=radars&flash=' . rawurlencode('Radar não encontrado.'));
             return;
         }
-        $r = $app->discovery()->run(
-            $app->mercadoLivreCollector(),
-            new CollectorContext(dryRun: $dry, radar: $radar)
-        );
+
+        $parts = [];
+        $unknown = [];
+        $tot = ['collected' => 0, 'new' => 0, 'updated' => 0, 'filtered' => 0];
+        $firstError = null;
+
+        foreach ($radar->marketplaces as $mp) {
+            $collector = self::collectorFor($app, $mp);
+            if ($collector === null) {
+                $unknown[] = $mp;
+                continue;
+            }
+            $r = $app->discovery()->run($collector, new CollectorContext(dryRun: $dry, radar: $radar));
+            $tot['collected'] += $r['collected'];
+            $tot['new'] += $r['new'];
+            $tot['updated'] += $r['updated'];
+            $tot['filtered'] += $r['filtered'];
+            $firstError ??= $r['errors'][0] ?? null;
+            $parts[] = View::marketplaceLabel($mp) . ": {$r['collected']} coletados, {$r['new']} novos";
+        }
+
+        if ($parts === [] && $unknown !== []) {
+            self::redirect('?r=radars&flash=' . rawurlencode(
+                'Radar "' . $radar->name . '": marketplace desconhecido (' . implode(', ', $unknown) . ') — nenhuma coleta foi executada.'
+            ));
+            return;
+        }
+
         $flash = sprintf(
-            '%s "%s": %d coletados, %d novos, %d atualizados, %d filtrados%s',
+            '%s "%s" — %s%s%s',
             $dry ? 'DRY-RUN' : 'Coleta',
             $radar->name,
-            $r['collected'],
-            $r['new'],
-            $r['updated'],
-            $r['filtered'],
-            $r['errors'] ? ' — ' . $r['errors'][0] : ''
+            implode(' · ', $parts),
+            $firstError ? ' — ' . $firstError : '',
+            $unknown ? ' · marketplace desconhecido ignorado: ' . implode(', ', $unknown) : ''
         );
         self::redirect('?r=radars&flash=' . rawurlencode($flash));
     }
@@ -143,12 +188,25 @@ final class Actions
         $numOrNull = static fn (string $key) =>
             ($_POST[$key] ?? '') === '' ? null : (is_numeric($_POST[$key]) ? $_POST[$key] + 0 : null);
 
+        // Validação: só aceita valores conhecidos (whitelist), nunca completa
+        // silenciosamente com Mercado Livre quando nada válido foi enviado —
+        // isso é tratado como erro explícito, não como default.
+        $marketplaces = array_values(array_unique(array_intersect(
+            array_map('strval', (array) ($_POST['marketplaces'] ?? [])),
+            Radar::KNOWN_MARKETPLACES
+        )));
+        if ($marketplaces === []) {
+            $back = $id === null ? '?r=radar.edit' : ('?r=radar.edit&id=' . $id);
+            self::redirect($back . '&flash=' . rawurlencode('Selecione ao menos um marketplace (Mercado Livre e/ou Shopee) — nada foi salvo.'));
+            return;
+        }
+
         $radar = new Radar(
             id: $id,
             slug: (string) ($_POST['slug'] ?? ''),
             name: trim((string) ($_POST['name'] ?? '')) ?: 'Radar sem nome',
             enabled: !empty($_POST['enabled']),
-            marketplaces: array_values(array_filter((array) ($_POST['marketplaces'] ?? ['mercado_livre']))),
+            marketplaces: $marketplaces,
             mlCategories: $mlCategories,
             shopeeKeywords: $listFrom('shopee_keywords'),
             extraKeywords: $listFrom('extra_keywords'),

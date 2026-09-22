@@ -54,6 +54,7 @@ foreach ([
     'HotScoreV2Test', 'EnvironmentValidationTest', 'HealthCheckTest', 'SystemResetServiceTest',
     'ProductSortTest', 'RunRepositoryOrphanTest',
     'OpenAiConfigSettingsTest', 'OpenAiConnectionTest',
+    'RadarMarketplaceTest', 'ShopeeCollectorTest', 'RadarCollectorDispatchTest',
 ] as $suite) {
     require __DIR__ . '/' . $suite . '.php';
 }
