@@ -74,7 +74,7 @@ $radNomes = implode(', ', array_map(static fn ($r) => $r['name'], $product_radar
         <div>Preço anterior</div><div><?= $p['price_previous'] ? View::money($p['price_previous']) : '—' ?></div>
         <div>Desconto</div><div><?= $p['discount_pct'] !== null ? (int) $p['discount_pct'] . '%' : '—' ?></div>
         <div>Avaliação</div><div><?= $p['rating'] !== null ? '★ ' . number_format((float) $p['rating'],1,',','') : 'Não informada' ?></div>
-        <div>Procura / vendas</div><div><?= View::e(View::vendasNome($p['sales_signal'])) ?></div>
+        <div>Procura / vendas</div><div><?= View::e(View::vendasTexto($p['sales_signal'], $p['sales_exact'] !== null ? (int) $p['sales_exact'] : null)) ?></div>
         <div>Tem vídeo</div><div><?= ((int) $p['has_video']) ? 'Sim' : 'Não' ?></div>
         <div>Descoberto</div><div><?= View::e(View::dataCurta($p['discovered_at'])) ?></div>
         <div>Última coleta</div><div><?= View::e(View::dataCurta($p['last_collected_at'])) ?></div>

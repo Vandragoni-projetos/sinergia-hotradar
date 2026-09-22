@@ -107,6 +107,26 @@ final class View
         };
     }
 
+    /**
+     * Igual a vendasNome(), mas também mostra o número exato de vendas quando
+     * disponível (ex.: Shopee, que fornece salesExact — nunca reconstrói um
+     * número a partir do sinal qualitativo, nem estima nada).
+     *   sinal + exato  -> "Muito alto · 65.656 vendas"
+     *   só sinal        -> "Muito alto"
+     *   só exato         -> "65.656 vendas"
+     *   nenhum dos dois -> "Não informado"
+     */
+    public static function vendasTexto(?string $signal, ?int $exact): string
+    {
+        $nome = $signal !== null ? self::vendasNome($signal) : null;
+        $qtd = $exact !== null ? number_format($exact, 0, ',', '.') . ' vendas' : null;
+
+        if ($nome !== null && $qtd !== null) {
+            return $nome . ' · ' . $qtd;
+        }
+        return $nome ?? $qtd ?? 'Não informado';
+    }
+
     public static function simNao(mixed $v): string
     {
         return $v ? 'Sim' : 'Não';
