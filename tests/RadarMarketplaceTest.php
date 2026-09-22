@@ -13,7 +13,7 @@ $app = new App(['env' => 'local', 'panel' => ['user' => 'x', 'password_hash' => 
 $countRadars = static fn () => (int) $db->first('SELECT COUNT(*) n FROM hr_radars')['n'];
 
 // ---- 5) formulário salva Shopee corretamente (só Shopee marcado, ML NÃO entra sozinho) ----
-$_POST = ['name' => 'Radar Shopee Teste', 'marketplaces' => ['shopee']];
+$_POST = ['name' => 'Radar Shopee Teste', 'marketplaces' => ['shopee'], 'shopee_page_start' => '1', 'shopee_page_end' => '10'];
 @Actions::radarSave($app);
 $row = $db->first("SELECT * FROM hr_radars WHERE name = 'Radar Shopee Teste'");
 T::ok($row !== null, 'radar Shopee foi criado');
@@ -21,14 +21,14 @@ $saved = Radar::fromRow($row);
 T::eq(['shopee'], $saved->marketplaces, 'marketplaces salvos = exatamente ["shopee"], sem mercado_livre entrar sozinho');
 
 // ---- 6) edição preserva Shopee (recarregar e salvar de novo não reverte para ML) ----
-$_POST = ['id' => (string) $saved->id, 'name' => 'Radar Shopee Teste', 'marketplaces' => ['shopee']];
+$_POST = ['id' => (string) $saved->id, 'name' => 'Radar Shopee Teste', 'marketplaces' => ['shopee'], 'shopee_page_start' => '1', 'shopee_page_end' => '10'];
 @Actions::radarSave($app);
 $row2 = $db->first('SELECT * FROM hr_radars WHERE id = ?', [$saved->id]);
 $saved2 = Radar::fromRow($row2);
 T::eq(['shopee'], $saved2->marketplaces, 'edição preserva Shopee — não volta para Mercado Livre sozinho');
 
 // ---- ambos marcados: salva os dois, sem perder nenhum ----
-$_POST = ['id' => (string) $saved->id, 'name' => 'Radar Shopee Teste', 'marketplaces' => ['mercado_livre', 'shopee']];
+$_POST = ['id' => (string) $saved->id, 'name' => 'Radar Shopee Teste', 'marketplaces' => ['mercado_livre', 'shopee'], 'shopee_page_start' => '1', 'shopee_page_end' => '10'];
 @Actions::radarSave($app);
 $row3 = $db->first('SELECT * FROM hr_radars WHERE id = ?', [$saved->id]);
 $saved3 = Radar::fromRow($row3);
@@ -47,7 +47,7 @@ $_POST = ['name' => 'Radar Sem Marketplace'];
 T::eq($before, $countRadars(), 'nenhum marketplace marcado: NADA é criado (era aqui que o fallback silencioso para ML acontecia antes)');
 
 // ---- valor bogus MISTURADO com um válido: só o válido é salvo, o lixo é descartado ----
-$_POST = ['name' => 'Radar Misto', 'marketplaces' => ['shopee', 'bogus_marketplace', 'outro_invalido']];
+$_POST = ['name' => 'Radar Misto', 'marketplaces' => ['shopee', 'bogus_marketplace', 'outro_invalido'], 'shopee_page_start' => '1', 'shopee_page_end' => '10'];
 @Actions::radarSave($app);
 $rowMisto = $db->first("SELECT * FROM hr_radars WHERE name = 'Radar Misto'");
 T::ok($rowMisto !== null, 'radar com mistura válido+inválido foi criado');

@@ -188,6 +188,8 @@ final class Actions
         $numOrNull = static fn (string $key) =>
             ($_POST[$key] ?? '') === '' ? null : (is_numeric($_POST[$key]) ? $_POST[$key] + 0 : null);
 
+        $back = $id === null ? '?r=radar.edit' : ('?r=radar.edit&id=' . $id);
+
         // Validação: só aceita valores conhecidos (whitelist), nunca completa
         // silenciosamente com Mercado Livre quando nada válido foi enviado —
         // isso é tratado como erro explícito, não como default.
@@ -196,9 +198,40 @@ final class Actions
             Radar::KNOWN_MARKETPLACES
         )));
         if ($marketplaces === []) {
-            $back = $id === null ? '?r=radar.edit' : ('?r=radar.edit&id=' . $id);
             self::redirect($back . '&flash=' . rawurlencode('Selecione ao menos um marketplace (Mercado Livre e/ou Shopee) — nada foi salvo.'));
             return;
+        }
+
+        // Faixa de páginas da Shopee: só valida quando Shopee está marcada
+        // (radar só-ML nem envia estes campos — ficam desabilitados no
+        // formulário). Erro claro em vez de clamp/fallback silencioso —
+        // o usuário precisa saber exatamente o que corrigir.
+        $shopeePageStart = null;
+        $shopeePageEnd = null;
+        if (in_array('shopee', $marketplaces, true)) {
+            $rawStart = $_POST['shopee_page_start'] ?? '';
+            $rawEnd = $_POST['shopee_page_end'] ?? '';
+            if (!is_numeric($rawStart) || (int) $rawStart < 1) {
+                self::redirect($back . '&flash=' . rawurlencode('Shopee: "Página inicial" deve ser um número inteiro ≥ 1 — nada foi salvo.'));
+                return;
+            }
+            if (!is_numeric($rawEnd) || (int) $rawEnd < 1) {
+                self::redirect($back . '&flash=' . rawurlencode('Shopee: "Página final" deve ser um número inteiro ≥ 1 — nada foi salvo.'));
+                return;
+            }
+            $shopeePageStart = (int) $rawStart;
+            $shopeePageEnd = (int) $rawEnd;
+            if ($shopeePageEnd < $shopeePageStart) {
+                self::redirect($back . '&flash=' . rawurlencode('Shopee: "Página final" precisa ser maior ou igual a "Página inicial" — nada foi salvo.'));
+                return;
+            }
+            if ($shopeePageEnd - $shopeePageStart + 1 > 10) {
+                self::redirect($back . '&flash=' . rawurlencode(
+                    'Shopee: no máximo 10 páginas por coleta (ex.: 11 até 20). Faixa informada: '
+                    . $shopeePageStart . '–' . $shopeePageEnd . ' (' . ($shopeePageEnd - $shopeePageStart + 1) . ' páginas) — nada foi salvo.'
+                ));
+                return;
+            }
         }
 
         $radar = new Radar(
@@ -220,8 +253,10 @@ final class Actions
             desiredWordsMode: Radar::normalizeDesiredWordsMode(
                 is_string($_POST['desired_words_mode'] ?? null) ? $_POST['desired_words_mode'] : null
             ),
-            shopeePageStart: Radar::normalizeShopeePageStart(
-                is_numeric($_POST['shopee_page_start'] ?? null) ? (int) $_POST['shopee_page_start'] : null
+            shopeePageStart: Radar::normalizeShopeePageStart($shopeePageStart),
+            shopeePageEnd: Radar::normalizeShopeePageEnd(
+                Radar::normalizeShopeePageStart($shopeePageStart),
+                $shopeePageEnd
             ),
         );
 

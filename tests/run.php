@@ -56,7 +56,7 @@ foreach ([
     'OpenAiConfigSettingsTest', 'OpenAiConnectionTest',
     'RadarMarketplaceTest', 'ShopeeCollectorTest', 'RadarCollectorDispatchTest',
     'RadarCollectButtonVisibilityTest', 'ShopeeFormSemanticsTest', 'RadarDesiredWordsTest',
-    'ShopeeAnalysisSignalsTest', 'ViewSalesPresentationTest', 'ShopeePageStartTest',
+    'ShopeeAnalysisSignalsTest', 'ViewSalesPresentationTest', 'ShopeePageRangeTest',
 ] as $suite) {
     require __DIR__ . '/' . $suite . '.php';
 }

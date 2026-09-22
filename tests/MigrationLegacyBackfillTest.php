@@ -26,14 +26,15 @@ foreach ($files as $file) {
     (require $file)($db, 'sqlite');
     $db->run('INSERT INTO hr_migrations (name, applied_at) VALUES (?,?)', [$name, $db->now()]);
 }
-// 008 e 009 são puramente aditivas em hr_radars (colunas novas, nullable) e
-// não têm nenhuma relação com o backfill 005 que este teste isola — mas o
+// 008, 009 e 010 são puramente aditivas em hr_radars (colunas novas, nullable)
+// e não têm nenhuma relação com o backfill 005 que este teste isola — mas o
 // fixture "Outro Radar" abaixo usa RadarRepository::create(), que grava o
 // schema ATUAL de Radar::toRow(). Sem isso, o INSERT falharia por coluna
 // ausente numa tabela congelada num ponto anterior a essas features — em
 // produção isso nunca acontece (o migrator sempre roda até a última migration).
 (require HR_ROOT . '/migrations/008_radar_desired_words.php')($db, 'sqlite');
 (require HR_ROOT . '/migrations/009_radar_shopee_page_start.php')($db, 'sqlite');
+(require HR_ROOT . '/migrations/010_radar_shopee_page_end.php')($db, 'sqlite');
 $radarDefault = (int) $db->first('SELECT id FROM hr_radars WHERE slug = ?', ['casa-organizacao'])['id'];
 $outroId = (int) (new HotRadar\Radar\RadarRepository($db, new HotRadar\Repository\AuditRepository($db)))
     ->create(new HotRadar\Radar\Radar(

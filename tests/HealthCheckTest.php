@@ -20,7 +20,7 @@ T::eq(200, $r['http'], 'banco saudável -> HTTP 200');
 T::eq('ok', $r['body']['status'], 'banco saudável -> status=ok');
 T::eq('ok', $r['body']['db_connection'], 'banco saudável -> db_connection=ok');
 T::eq('sqlite', $r['body']['db_driver'], 'reporta o driver realmente ativo');
-T::ok(($r['body']['migrations_applied'] ?? null) === 9, 'reporta a contagem de migrations aplicadas (9)');
+T::ok(($r['body']['migrations_applied'] ?? null) === 10, 'reporta a contagem de migrations aplicadas (10)');
 TestDb::cleanup('healthcheck_ok');
 
 // ---------------------------------------------------------------- config inválida (produção sem driver)
