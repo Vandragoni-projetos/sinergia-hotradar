@@ -155,7 +155,10 @@ class ShopeeCollector implements CollectorInterface
                 $newInPage++;
 
                 if ($radar !== null) {
-                    $verdict = $radar->accepts($np);
+                    // videoFilterSupported: false — a Shopee (API de afiliados) nunca informa
+                    // se o produto tem vídeo; "Exigir vídeo" nunca pode zerar a coleta Shopee
+                    // por um dado que este marketplace estruturalmente não fornece.
+                    $verdict = $radar->accepts($np, videoFilterSupported: false);
                     if (!$verdict['ok']) {
                         $filtered++;
                         continue;
