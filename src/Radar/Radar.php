@@ -17,12 +17,19 @@ final class Radar
      *  nem executado silenciosamente como se fosse outro marketplace. */
     public const KNOWN_MARKETPLACES = ['mercado_livre', 'shopee'];
 
+    /** Valores aceitos para $desiredWordsMode — qualquer outra coisa normaliza para 'any'. */
+    public const DESIRED_WORDS_MODES = ['any', 'all'];
+
+    /** 'any' (pelo menos um termo) | 'all' (todos os termos) — sempre um destes dois, nunca outro valor. */
+    public string $desiredWordsMode;
+
     /**
      * @param array<int,string>                        $marketplaces
      * @param array<int,array{id:string,label:string}> $mlCategories
      * @param array<int,string>                        $shopeeKeywords
      * @param array<int,string>                        $extraKeywords
      * @param array<int,string>                        $excludedWords
+     * @param array<int,string>                        $desiredWords
      */
     public function __construct(
         public ?int $id,
@@ -39,7 +46,16 @@ final class Radar
         public ?float $priceMin,
         public ?float $priceMax,
         public bool $requireVideo,
+        public array $desiredWords = [],
+        string $desiredWordsMode = 'any',
     ) {
+        $this->desiredWordsMode = self::normalizeDesiredWordsMode($desiredWordsMode);
+    }
+
+    /** Só 'any'/'all' passam; qualquer valor ausente/inválido normaliza para 'any' — nunca 'all' por acidente. */
+    public static function normalizeDesiredWordsMode(?string $mode): string
+    {
+        return in_array($mode, self::DESIRED_WORDS_MODES, true) ? $mode : 'any';
     }
 
     /** @param array<string,mixed> $row */
@@ -61,6 +77,10 @@ final class Radar
             priceMin: $row['price_min'] !== null ? (float) $row['price_min'] : null,
             priceMax: $row['price_max'] !== null ? (float) $row['price_max'] : null,
             requireVideo: (bool) ($row['require_video'] ?? 0),
+            desiredWords: array_values(array_map('strval', $j('desired_words'))),
+            desiredWordsMode: self::normalizeDesiredWordsMode(
+                isset($row['desired_words_mode']) ? (string) $row['desired_words_mode'] : null
+            ),
         );
     }
 
@@ -101,6 +121,23 @@ final class Radar
             }
         }
 
+        $desired = array_values(array_filter(array_map(
+            static fn ($w) => mb_strtolower(trim((string) $w), 'UTF-8'),
+            $this->desiredWords
+        ), static fn ($w) => $w !== ''));
+        if ($desired !== []) {
+            $hits = 0;
+            foreach ($desired as $w) {
+                if (mb_strpos($title, $w) !== false) {
+                    $hits++;
+                }
+            }
+            $matched = $this->desiredWordsMode === 'all' ? ($hits === count($desired)) : ($hits > 0);
+            if (!$matched) {
+                return ['ok' => false, 'reason' => 'não contém as palavras desejadas'];
+            }
+        }
+
         if ($this->minDiscount !== null) {
             if ($p->discountPct === null || $p->discountPct < $this->minDiscount) {
                 return ['ok' => false, 'reason' => 'desconto < ' . $this->minDiscount . '%'];
@@ -138,6 +175,8 @@ final class Radar
             'price_min' => $this->priceMin,
             'price_max' => $this->priceMax,
             'require_video' => $this->requireVideo ? 1 : 0,
+            'desired_words' => json_encode(array_values($this->desiredWords), JSON_UNESCAPED_UNICODE),
+            'desired_words_mode' => $this->desiredWordsMode,
         ];
     }
 
