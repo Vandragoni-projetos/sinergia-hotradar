@@ -60,6 +60,22 @@ $shopeeOnlyInitial = $shopeeChecked && !$mlChecked;
     <span class="muted" style="font-size:12px">IDs vêm de <code>config/ml_categories.php</code> (editável). A configuração ativa fica só neste radar, no banco. Usado <strong>somente</strong> na coleta do Mercado Livre — a Shopee não lê este campo.</span>
   </div>
 
+  <div class="f" style="margin-bottom:14px">
+    <label>Palavras desejadas (opcional)</label>
+    <textarea name="desired_words" rows="3" style="width:100%"><?= View::e(implode("\n", $radar->desiredWords ?? [])) ?></textarea>
+    <span class="muted" style="font-size:12px">Informe os termos dos produtos que deseja encontrar. Separe por vírgula ou quebra de linha. Se deixar vazio, nenhum filtro adicional será aplicado. Vale para Mercado Livre e Shopee.</span>
+    <div style="margin-top:8px">
+      <label style="display:flex;gap:6px;align-items:center;font-size:13px">
+        <input type="radio" name="desired_words_mode" value="any" <?= ($radar->desiredWordsMode ?? 'any') === 'all' ? '' : 'checked' ?>>
+        Qualquer termo <span class="muted" style="font-size:12px">— produto entra se encontrar pelo menos um dos termos</span>
+      </label>
+      <label style="display:flex;gap:6px;align-items:center;font-size:13px">
+        <input type="radio" name="desired_words_mode" value="all" <?= ($radar->desiredWordsMode ?? 'any') === 'all' ? 'checked' : '' ?>>
+        Todos os termos <span class="muted" style="font-size:12px">— produto entra somente se encontrar todos os termos</span>
+      </label>
+    </div>
+  </div>
+
   <div class="grid" style="grid-template-columns:1fr 1fr;gap:14px">
     <div class="f" id="section-extra-keywords" <?= $shopeeOnlyInitial ? 'hidden' : '' ?>>
       <label>Keywords adicionais (Mercado Livre) <span class="muted" style="font-size:12px">(uma por linha ou vírgula)</span></label>

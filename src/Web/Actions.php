@@ -216,6 +216,10 @@ final class Actions
             priceMin: $numOrNull('price_min') !== null ? (float) $numOrNull('price_min') : null,
             priceMax: $numOrNull('price_max') !== null ? (float) $numOrNull('price_max') : null,
             requireVideo: !empty($_POST['require_video']),
+            desiredWords: $listFrom('desired_words'),
+            desiredWordsMode: Radar::normalizeDesiredWordsMode(
+                is_string($_POST['desired_words_mode'] ?? null) ? $_POST['desired_words_mode'] : null
+            ),
         );
 
         if ($id === null) {
