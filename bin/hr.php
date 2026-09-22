@@ -89,22 +89,34 @@ try {
                 line('Radar não encontrado. Use: php bin/hr.php radars');
                 exit(1);
             }
-            printCollectResult($app->discovery()->run(
-                $app->mercadoLivreCollector(),
-                new CollectorContext(dryRun: isset($flags['dry-run']), radar: $rd)
-            ));
+            foreach ($rd->marketplaces as $mp) {
+                $collector = cliCollectorFor($app, $mp);
+                if ($collector === null) {
+                    line("Marketplace desconhecido \"$mp\" neste radar — nenhuma coleta executada para ele.");
+                    continue;
+                }
+                line('>>> ' . $mp);
+                printCollectResult($app->discovery()->run(
+                    $collector,
+                    new CollectorContext(dryRun: isset($flags['dry-run']), radar: $rd)
+                ));
+            }
             break;
 
         case 'collect:all':
             foreach ($app->radars()->enabled() as $rd) {
-                if (!$rd->hasMarketplace('mercado_livre')) {
-                    continue;
+                foreach ($rd->marketplaces as $mp) {
+                    $collector = cliCollectorFor($app, $mp);
+                    if ($collector === null) {
+                        line("Radar {$rd->name}: marketplace desconhecido \"$mp\" — nenhuma coleta executada para ele.");
+                        continue;
+                    }
+                    line('>>> Radar: ' . $rd->name . ' (' . $mp . ')');
+                    printCollectResult($app->discovery()->run(
+                        $collector,
+                        new CollectorContext(dryRun: isset($flags['dry-run']), radar: $rd)
+                    ));
                 }
-                line('>>> Radar: ' . $rd->name);
-                printCollectResult($app->discovery()->run(
-                    $app->mercadoLivreCollector(),
-                    new CollectorContext(dryRun: isset($flags['dry-run']), radar: $rd)
-                ));
             }
             break;
 
@@ -158,6 +170,20 @@ try {
 }
 
 /** @param array<string,mixed> $r */
+/**
+ * Único ponto de despacho de collector por marketplace na CLI — espelha
+ * Actions::collectorFor() do painel web. Marketplace desconhecido devolve
+ * null; quem chama trata como erro explícito, nunca cai para Mercado Livre.
+ */
+function cliCollectorFor(App $app, string $marketplace): ?\HotRadar\Collector\CollectorInterface
+{
+    return match ($marketplace) {
+        'mercado_livre' => $app->mercadoLivreCollector(),
+        'shopee' => $app->shopeeCollector(),
+        default => null,
+    };
+}
+
 function printCollectResult(array $r): void
 {
     line('');

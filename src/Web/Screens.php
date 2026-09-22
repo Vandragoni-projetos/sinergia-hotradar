@@ -164,6 +164,7 @@ final class Screens
             'active' => 'radars',
             'radar' => $radar,
             'catalog' => MlCategories::catalog(),
+            'shopee_available' => $app->shopeeStatus()->collectorEnabled(),
         ], $radar ? 'Editar Radar' : 'Criar Radar');
     }
 

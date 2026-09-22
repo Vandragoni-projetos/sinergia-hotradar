@@ -3,6 +3,7 @@ use HotRadar\Web\View;
 /**
  * @var \HotRadar\Radar\Radar|null $radar
  * @var array<string,string> $catalog  id => rótulo (config/ml_categories.php)
+ * @var bool $shopee_available  true só quando credenciais + acesso à Open API estão prontos
  */
 $isNew = $radar === null;
 $selected = [];
@@ -31,9 +32,16 @@ $val = static fn ($v) => $v === null ? '' : (string) $v;
   </label>
 
   <div class="f" style="margin-bottom:14px">
-    <label>Marketplaces deste radar</label>
-    <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="marketplaces[]" value="mercado_livre" <?= (!$radar || in_array('mercado_livre', $radar->marketplaces, true)) ? 'checked' : '' ?>> Mercado Livre</label>
-    <label style="display:flex;gap:8px;align-items:center;opacity:.6"><input type="checkbox" name="marketplaces[]" value="shopee" <?= ($radar && in_array('shopee', $radar->marketplaces, true)) ? 'checked' : '' ?>> Shopee <span class="muted">(coleta só quando a Open API estiver ativa)</span></label>
+    <label>Marketplaces deste radar <span class="muted" style="font-size:12px">(marque ao menos um — nenhum vem pré-selecionado)</span></label>
+    <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="marketplaces[]" value="mercado_livre" <?= ($radar && in_array('mercado_livre', $radar->marketplaces, true)) ? 'checked' : '' ?>> Mercado Livre</label>
+    <label style="display:flex;gap:8px;align-items:center<?= $shopee_available ? '' : ';opacity:.6' ?>">
+      <input type="checkbox" name="marketplaces[]" value="shopee" <?= ($radar && in_array('shopee', $radar->marketplaces, true)) ? 'checked' : '' ?>> Shopee
+      <?php if ($shopee_available): ?>
+        <span class="badge" style="background:var(--ok);color:#fff;border-color:transparent;font-size:11px">disponível</span>
+      <?php else: ?>
+        <span class="muted">(a coleta só roda quando a Open API estiver ativa — você pode marcar agora e a coleta começa a valer quando a Shopee liberar o acesso)</span>
+      <?php endif; ?>
+    </label>
   </div>
 
   <div class="f" style="margin-bottom:14px">
