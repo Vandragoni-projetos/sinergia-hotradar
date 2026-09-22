@@ -95,16 +95,27 @@ $shopeeOnlyInitial = $shopeeChecked && !$mlChecked;
     <span class="muted" style="font-size:12px">A consulta oficial usada hoje (<code>productOfferV2</code>) não aceita filtro por palavra-chave — preencher aqui <strong>não altera</strong> o que é buscado nem filtrado. Guardado para quando/se a API passar a suportar isso.</span>
   </div>
 
-  <div class="f" style="margin:14px 0" id="section-shopee-page-start" <?= $shopeeChecked ? '' : 'hidden' ?>>
-    <label>Começar na página</label>
-    <input type="number" name="shopee_page_start" min="1" value="<?= (int) ($radar->shopeePageStart ?? 1) ?>" style="width:120px" <?= $shopeeChecked ? '' : 'disabled' ?>>
-    <span class="muted" style="font-size:12px">De onde o feed da Shopee começa a ser lido — a quantidade de páginas continua vindo de "Páginas do feed", abaixo. Ex.: início 11 + 10 páginas = páginas 11–20.</span>
+  <div class="f" style="margin:14px 0" id="section-shopee-page-range" <?= $shopeeChecked ? '' : 'hidden' ?>>
+    <label id="label-shopee-caption" class="muted" style="font-size:11px;letter-spacing:.04em" <?= ($mlChecked && $shopeeChecked) ? '' : 'hidden' ?>>SHOPEE</label>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end">
+      <div>
+        <label class="muted" style="font-size:11px">Página inicial</label><br>
+        <input type="number" name="shopee_page_start" min="1" value="<?= (int) ($radar->shopeePageStart ?? 1) ?>" style="width:120px" <?= $shopeeChecked ? '' : 'disabled' ?>>
+      </div>
+      <div>
+        <label class="muted" style="font-size:11px">Página final</label><br>
+        <input type="number" name="shopee_page_end" min="1" value="<?= (int) ($radar->shopeePageEnd ?? 10) ?>" style="width:120px" <?= $shopeeChecked ? '' : 'disabled' ?>>
+      </div>
+    </div>
+    <span class="muted" style="font-size:12px">Máximo de 10 páginas por coleta. Ex.: 11 até 20.</span>
   </div>
 
   <div class="grid" style="grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px">
-    <div class="f"><label id="label-pages"><?= $shopeeOnlyInitial ? 'Páginas do feed' : 'Páginas / categoria' ?></label>
-      <input type="number" name="pages_per_category" min="1" max="10" value="<?= (int) ($radar->pagesPerCategory ?? 3) ?>">
-      <span class="muted" style="font-size:11px" id="help-pages"><?php if ($mlChecked && $shopeeChecked): ?>No Mercado Livre: páginas por categoria. Na Shopee: páginas do feed geral (não existe categoria na consulta).<?php elseif ($shopeeOnlyInitial): ?>Quantidade de páginas do feed geral da Shopee a consultar.<?php endif; ?></span>
+    <div class="f" id="section-ml-pages" <?= $mlChecked ? '' : 'hidden' ?>>
+      <label id="label-ml-caption" class="muted" style="font-size:11px;letter-spacing:.04em" <?= ($mlChecked && $shopeeChecked) ? '' : 'hidden' ?>>MERCADO LIVRE</label>
+      <label>Páginas / categoria</label>
+      <input type="number" name="pages_per_category" min="1" max="10" value="<?= (int) ($radar->pagesPerCategory ?? 3) ?>" <?= $mlChecked ? '' : 'disabled' ?>>
+      <span class="muted" style="font-size:11px">Quantidade de páginas percorridas por categoria do Mercado Livre (máx. 10).</span>
     </div>
     <div class="f"><label>Desconto mín. %</label>
       <input type="number" name="min_discount" min="0" max="99" value="<?= $val($radar->minDiscount ?? null) ?>" placeholder="—"></div>
@@ -135,9 +146,10 @@ $shopeeOnlyInitial = $shopeeChecked && !$mlChecked;
   var secML = document.getElementById('section-ml-categories');
   var secExtraKw = document.getElementById('section-extra-keywords');
   var secShopeeKw = document.getElementById('section-shopee-keywords');
-  var secShopeePageStart = document.getElementById('section-shopee-page-start');
-  var labelPages = document.getElementById('label-pages');
-  var helpPages = document.getElementById('help-pages');
+  var secShopeePageRange = document.getElementById('section-shopee-page-range');
+  var secMlPages = document.getElementById('section-ml-pages');
+  var capMl = document.getElementById('label-ml-caption');
+  var capShopee = document.getElementById('label-shopee-caption');
   var reqVideoCb = document.getElementById('require_video_checkbox');
   var noteReqVideo = document.getElementById('note-require-video');
   if (!mlCb || !shopeeCb) { return; }
@@ -153,22 +165,16 @@ $shopeeOnlyInitial = $shopeeChecked && !$mlChecked;
     var ml = mlCb.checked;
     var shopee = shopeeCb.checked;
     var shopeeOnly = shopee && !ml;
+    var both = ml && shopee;
 
     setSectionEnabled(secML, ml);
     setSectionEnabled(secExtraKw, ml);
     setSectionEnabled(secShopeeKw, shopee);
-    setSectionEnabled(secShopeePageStart, shopee);
+    setSectionEnabled(secShopeePageRange, shopee);
+    setSectionEnabled(secMlPages, ml);
 
-    if (ml && shopee) {
-      labelPages.textContent = 'Páginas / categoria (ML) · Páginas do feed (Shopee)';
-      helpPages.textContent = 'No Mercado Livre: páginas por categoria. Na Shopee: páginas do feed geral (não existe categoria na consulta).';
-    } else if (shopeeOnly) {
-      labelPages.textContent = 'Páginas do feed';
-      helpPages.textContent = 'Quantidade de páginas do feed geral da Shopee a consultar.';
-    } else {
-      labelPages.textContent = 'Páginas / categoria';
-      helpPages.textContent = '';
-    }
+    if (capMl) { capMl.hidden = !both; }
+    if (capShopee) { capShopee.hidden = !both; }
 
     reqVideoCb.disabled = shopeeOnly;
     noteReqVideo.hidden = !shopeeOnly;

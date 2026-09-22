@@ -26,6 +26,9 @@ final class Radar
     /** Página do feed Shopee em que a coleta começa — sempre ≥1. Não usado pelo Mercado Livre. */
     public int $shopeePageStart;
 
+    /** Página do feed Shopee em que a coleta termina (faixa INCLUSIVA) — sempre ≥ shopeePageStart. Não usado pelo Mercado Livre. */
+    public int $shopeePageEnd;
+
     /**
      * @param array<int,string>                        $marketplaces
      * @param array<int,array{id:string,label:string}> $mlCategories
@@ -52,9 +55,11 @@ final class Radar
         public array $desiredWords = [],
         string $desiredWordsMode = 'any',
         int $shopeePageStart = 1,
+        ?int $shopeePageEnd = null,
     ) {
         $this->desiredWordsMode = self::normalizeDesiredWordsMode($desiredWordsMode);
         $this->shopeePageStart = self::normalizeShopeePageStart($shopeePageStart);
+        $this->shopeePageEnd = self::normalizeShopeePageEnd($this->shopeePageStart, $shopeePageEnd);
     }
 
     /** Só 'any'/'all' passam; qualquer valor ausente/inválido normaliza para 'any' — nunca 'all' por acidente. */
@@ -74,10 +79,36 @@ final class Radar
         return max(1, $page ?? 1);
     }
 
+    /**
+     * "Página final" do feed Shopee — nunca menor que o início (faixa
+     * inclusiva). Ausente (null) vira igual ao início (faixa de 1 página) —
+     * default mínimo e seguro para quem constrói um Radar sem se importar
+     * com a faixa Shopee (ex.: radar só-ML). NÃO é o cálculo de
+     * retrocompatibilidade de radar antigo — esse fica em fromRow(), que
+     * usa pages_per_category (só ali, nunca aqui).
+     */
+    public static function normalizeShopeePageEnd(int $start, ?int $end): int
+    {
+        return $end !== null ? max($start, $end) : $start;
+    }
+
     /** @param array<string,mixed> $row */
     public static function fromRow(array $row): self
     {
         $j = static fn (string $k): array => is_array($d = json_decode((string) ($row[$k] ?? '[]'), true)) ? $d : [];
+
+        $pagesPerCategory = max(1, (int) ($row['pages_per_category'] ?? 3));
+        $shopeePageStart = self::normalizeShopeePageStart(
+            isset($row['shopee_page_start']) ? (int) $row['shopee_page_start'] : null
+        );
+        // Retrocompatibilidade: radar salvo ANTES desta migration não tem
+        // shopee_page_end — deriva o fim equivalente ao comportamento
+        // anterior (início + quantidade - 1), para continuar coletando
+        // exatamente a mesma faixa de sempre, sem ação manual.
+        $shopeePageEnd = isset($row['shopee_page_end'])
+            ? (int) $row['shopee_page_end']
+            : $shopeePageStart + $pagesPerCategory - 1;
+
         return new self(
             id: isset($row['id']) ? (int) $row['id'] : null,
             slug: (string) $row['slug'],
@@ -88,7 +119,7 @@ final class Radar
             shopeeKeywords: array_values(array_map('strval', $j('shopee_keywords'))),
             extraKeywords: array_values(array_map('strval', $j('extra_keywords'))),
             excludedWords: array_values(array_map('strval', $j('excluded_words'))),
-            pagesPerCategory: max(1, (int) ($row['pages_per_category'] ?? 3)),
+            pagesPerCategory: $pagesPerCategory,
             minDiscount: $row['min_discount'] !== null ? (int) $row['min_discount'] : null,
             priceMin: $row['price_min'] !== null ? (float) $row['price_min'] : null,
             priceMax: $row['price_max'] !== null ? (float) $row['price_max'] : null,
@@ -97,7 +128,8 @@ final class Radar
             desiredWordsMode: self::normalizeDesiredWordsMode(
                 isset($row['desired_words_mode']) ? (string) $row['desired_words_mode'] : null
             ),
-            shopeePageStart: isset($row['shopee_page_start']) ? (int) $row['shopee_page_start'] : 1,
+            shopeePageStart: $shopeePageStart,
+            shopeePageEnd: $shopeePageEnd,
         );
     }
 
@@ -195,6 +227,7 @@ final class Radar
             'desired_words' => json_encode(array_values($this->desiredWords), JSON_UNESCAPED_UNICODE),
             'desired_words_mode' => $this->desiredWordsMode,
             'shopee_page_start' => $this->shopeePageStart,
+            'shopee_page_end' => $this->shopeePageEnd,
         ];
     }
 

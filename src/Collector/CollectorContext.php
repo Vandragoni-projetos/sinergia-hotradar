@@ -46,4 +46,15 @@ final class CollectorContext
     {
         return $this->radar !== null ? $this->radar->shopeePageStart : 1;
     }
+
+    /**
+     * Página em que o feed da Shopee termina (faixa INCLUSIVA). Só a Shopee
+     * usa isto. Sem radar (modo legado/CLI), cai em effectiveMaxPages() a
+     * partir da página 1 — preserva o comportamento legado do CLI/testes,
+     * que nunca conheceu início/fim, só uma quantidade a partir da 1ª página.
+     */
+    public function effectiveShopeePageEnd(): int
+    {
+        return $this->radar !== null ? $this->radar->shopeePageEnd : $this->maxPages;
+    }
 }

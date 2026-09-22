@@ -81,9 +81,8 @@ class ShopeeCollector implements CollectorInterface
         }
 
         $radar = $ctx->radar;
-        $maxPages = max(1, $ctx->effectiveMaxPages());
         $startPage = max(1, $ctx->effectiveShopeePageStart());
-        $endPage = $startPage + $maxPages - 1;
+        $endPage = max($startPage, $ctx->effectiveShopeePageEnd());
         $filtered = 0;
         $seen = [];
 
