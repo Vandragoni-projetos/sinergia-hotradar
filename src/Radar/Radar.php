@@ -23,6 +23,9 @@ final class Radar
     /** 'any' (pelo menos um termo) | 'all' (todos os termos) — sempre um destes dois, nunca outro valor. */
     public string $desiredWordsMode;
 
+    /** Página do feed Shopee em que a coleta começa — sempre ≥1. Não usado pelo Mercado Livre. */
+    public int $shopeePageStart;
+
     /**
      * @param array<int,string>                        $marketplaces
      * @param array<int,array{id:string,label:string}> $mlCategories
@@ -48,14 +51,27 @@ final class Radar
         public bool $requireVideo,
         public array $desiredWords = [],
         string $desiredWordsMode = 'any',
+        int $shopeePageStart = 1,
     ) {
         $this->desiredWordsMode = self::normalizeDesiredWordsMode($desiredWordsMode);
+        $this->shopeePageStart = self::normalizeShopeePageStart($shopeePageStart);
     }
 
     /** Só 'any'/'all' passam; qualquer valor ausente/inválido normaliza para 'any' — nunca 'all' por acidente. */
     public static function normalizeDesiredWordsMode(?string $mode): string
     {
         return in_array($mode, self::DESIRED_WORDS_MODES, true) ? $mode : 'any';
+    }
+
+    /**
+     * "Começar na página" do feed Shopee — mínimo 1, ausente/inválido/≤0 vira 1
+     * (mesmo comportamento de hoje, que sempre começa em 1). Sem teto máximo:
+     * a auditoria não encontrou nenhum limite comprovado da própria Shopee, só
+     * o limite de QUANTIDADE de páginas (pages_per_category, continua 1–10).
+     */
+    public static function normalizeShopeePageStart(?int $page): int
+    {
+        return max(1, $page ?? 1);
     }
 
     /** @param array<string,mixed> $row */
@@ -81,6 +97,7 @@ final class Radar
             desiredWordsMode: self::normalizeDesiredWordsMode(
                 isset($row['desired_words_mode']) ? (string) $row['desired_words_mode'] : null
             ),
+            shopeePageStart: isset($row['shopee_page_start']) ? (int) $row['shopee_page_start'] : 1,
         );
     }
 
@@ -177,6 +194,7 @@ final class Radar
             'require_video' => $this->requireVideo ? 1 : 0,
             'desired_words' => json_encode(array_values($this->desiredWords), JSON_UNESCAPED_UNICODE),
             'desired_words_mode' => $this->desiredWordsMode,
+            'shopee_page_start' => $this->shopeePageStart,
         ];
     }
 

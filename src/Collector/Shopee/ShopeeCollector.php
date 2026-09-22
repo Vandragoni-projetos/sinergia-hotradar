@@ -82,10 +82,12 @@ class ShopeeCollector implements CollectorInterface
 
         $radar = $ctx->radar;
         $maxPages = max(1, $ctx->effectiveMaxPages());
+        $startPage = max(1, $ctx->effectiveShopeePageStart());
+        $endPage = $startPage + $maxPages - 1;
         $filtered = 0;
         $seen = [];
 
-        for ($page = 1; $page <= $maxPages; $page++) {
+        for ($page = $startPage; $page <= $endPage; $page++) {
             $payload = json_encode([
                 'query' => self::GRAPHQL_QUERY,
                 'variables' => ['page' => $page, 'limit' => self::DEFAULT_LIMIT],

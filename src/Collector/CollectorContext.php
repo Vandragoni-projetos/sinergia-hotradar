@@ -36,4 +36,14 @@ final class CollectorContext
     {
         return $this->radar !== null ? $this->radar->pagesPerCategory : $this->maxPages;
     }
+
+    /**
+     * Página em que o feed da Shopee começa a ser lido (só a Shopee usa isto —
+     * o Mercado Livre sempre percorre cada categoria a partir da página 1,
+     * sem nenhuma relação com este valor). Sem radar (modo legado/CLI), 1.
+     */
+    public function effectiveShopeePageStart(): int
+    {
+        return $this->radar !== null ? $this->radar->shopeePageStart : 1;
+    }
 }
