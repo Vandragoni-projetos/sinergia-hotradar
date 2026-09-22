@@ -45,11 +45,11 @@ use HotRadar\Web\View;
         <td><strong><?= $n ?></strong></td>
         <td class="muted" style="font-size:12px"><?= View::ago($last_by_radar[$rd->slug] ?? null) ?></td>
         <td style="text-align:right;white-space:nowrap">
-          <?php if ($rd->hasMarketplace('mercado_livre')): ?>
+          <?php if (array_intersect($rd->marketplaces, \HotRadar\Radar\Radar::KNOWN_MARKETPLACES) !== []): ?>
             <form method="post" action="?r=radar.collect" style="display:inline">
               <?= View::csrf() ?>
               <input type="hidden" name="id" value="<?= (int) $rd->id ?>">
-              <button class="btn primary" type="submit" title="Coleta só este radar; os outros não são afetados">Coletar</button>
+              <button class="btn primary" type="submit" title="Coleta só este radar; os outros não são afetados. Se algum marketplace não estiver disponível (ex.: Shopee sem credenciais/acesso), o aviso aparece depois de clicar — nada é substituído por Mercado Livre.">Coletar</button>
             </form>
           <?php endif; ?>
           <a class="btn" href="?r=products&radar=<?= View::e($rd->slug) ?>">Ver produtos</a>
