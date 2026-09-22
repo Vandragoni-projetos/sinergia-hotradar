@@ -83,7 +83,12 @@ $fakeB = $makeShopeeFake($status, $bodyWithProduct);
 $reportB = $fakeB->collect(new CollectorContext(maxPages: 1, radar: $radarShopeeComLixoMl));
 T::eq(1, count($reportB->products), 'Shopee: produto é coletado normalmente mesmo com ml_categories/extra_keywords/require_video residuais');
 T::eq(0, $reportB->filteredByRadar, 'Shopee: "Exigir vídeo" residual NÃO filtrou nada (nenhum produto perdido por isso)');
-T::eq(null, $reportB->products[0]->nicheConfidence, 'Shopee: extra_keywords (ML) não teve nenhum efeito — nicheConfidence continua null, sem boost aplicado');
+// nicheConfidence agora É calculado para Shopee (NicheClassifier aplicado no ProductOfferV2Mapper,
+// correção de SINERGIA-HOTRADAR-AUDITORIA-CLASSIFICACAO-RETORNOS.md) — mas só a partir do TÍTULO.
+// "Produto Shopee" não bate com nenhum termo do nicho-alvo, então vira 'fora'. O que este teste
+// precisa provar continua verdadeiro: extra_keywords (ML) não influencia esse resultado — o "boost"
+// de applyRadarNicheBoost() é exclusivo do MercadoLivreCollector, nunca chamado pelo ShopeeCollector.
+T::eq('fora', $reportB->products[0]->nicheConfidence, 'Shopee: nicheConfidence calculado a partir só do título ("fora" — não relacionado ao nicho-alvo)');
 
 // mesmo radar, mas SEM os campos residuais — resultado idêntico, prova que eles não fazem diferença nenhuma
 $radarShopeeLimpo = $mkRadar(['marketplaces' => ['shopee']]);

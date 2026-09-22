@@ -3,15 +3,12 @@ declare(strict_types=1);
 
 namespace HotRadar\Collector\Shopee;
 
+use HotRadar\Collector\NicheClassifier;
 use HotRadar\Model\NormalizedProduct;
 
 /**
  * Mapeia um "node" de productOfferV2 / shopeeOfferV2 (Shopee Affiliate Open API)
  * para o modelo interno neutro.
- *
- * ESTE CÓDIGO ESTÁ PRONTO MAS NÃO É EXECUTADO — a conta não tem acesso à Open API
- * (erro 10035). No dia em que houver App ID/Secret aprovados, o ShopeeCollector
- * passa a chamar a API e usa este mapper. Nenhuma reconstrução necessária.
  *
  * Campos confirmados pela auditoria (productOfferV2):
  *   itemId, shopId, productName, price, priceMin, priceMax, priceDiscountRate,
@@ -21,6 +18,10 @@ use HotRadar\Model\NormalizedProduct;
  */
 final class ProductOfferV2Mapper
 {
+    public function __construct(private readonly NicheClassifier $niche = new NicheClassifier())
+    {
+    }
+
     /** @param array<string,mixed> $node */
     public function map(array $node): NormalizedProduct
     {
@@ -54,10 +55,18 @@ final class ProductOfferV2Mapper
             $campaign = 'campanha';
         }
 
+        $title = (string) ($node['productName'] ?? '');
+        // Mesmo classificador já usado pelo Mercado Livre (NicheClassifier), aplicado
+        // aqui pela 1ª vez para Shopee. Só o título é um dado real do produto Shopee;
+        // não há "categoria de origem" equivalente na query atual, então o 2º parâmetro
+        // (sinal fraco opcional) fica de fora — o classificador já trata isso como
+        // ausência normal, não como dado inventado.
+        $niche = $this->niche->classify($title);
+
         return new NormalizedProduct(
             marketplace: 'shopee',
             marketplaceProductId: $itemId !== '' ? $itemId : ($shopId . '_' . ($node['productName'] ?? '')),
-            title: (string) ($node['productName'] ?? ''),
+            title: $title,
             urlOriginal: $productLink !== '' ? $productLink : $offerLink,
             shopId: $shopId !== '' ? $shopId : null,
             category: null,
@@ -67,7 +76,7 @@ final class ProductOfferV2Mapper
             priceCurrent: $price,
             pricePrevious: $previous,
             discountPct: $discountRate !== null ? (int) round($discountRate) : null,
-            salesSignal: null,               // deriva do número exato no HotScore
+            salesSignal: null,               // sem sinal pronto da API — deriva de salesExact na análise (DiscoveryService)
             salesExact: $sales,
             rating: $rating,
             ratingCount: null,               // productOfferV2 não devolve contagem
@@ -84,10 +93,11 @@ final class ProductOfferV2Mapper
                 'period_start' => $node['periodStartTime'] ?? null,
                 'period_end' => $node['periodEndTime'] ?? null,
                 'product_catids' => $node['productCatIds'] ?? null,
+                'niche_slug' => $niche['slug'],
             ], static fn ($v) => $v !== null),
             dataQuality: 'api',
             source: 'shopee_api',
-            nicheConfidence: null,
+            nicheConfidence: $niche['confidence'],
         );
     }
 

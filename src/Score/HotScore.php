@@ -64,12 +64,7 @@ final class HotScore
         $detail = '';
 
         if ($signal === null && $p->salesExact !== null) {
-            foreach ($cfg['exact_to_signal'] as $rule) {
-                if ($p->salesExact >= $rule['min']) {
-                    $signal = $rule['signal'];
-                    break;
-                }
-            }
+            $signal = $this->deriveSalesSignalFromExact($p->salesExact);
             $detail = number_format((float) $p->salesExact, 0, ',', '.') . ' vendas → ' . ($signal ?? '—') . '. ';
         }
 
@@ -81,6 +76,27 @@ final class HotScore
         $pts = (int) ($cfg['signal_points'][$signal] ?? 0);
         $detail .= 'sinal "' . $signal . '"';
         $b->addComponent('vendas', $cfg['label'], $pts, $max, $detail, true);
+    }
+
+    /**
+     * Deriva o mesmo sinal de vendas (muito_alto|alto|medio|baixo|null) que
+     * scoreVendas() usaria a partir do número exato — única fonte da regra
+     * ('vendas.exact_to_signal' em HotScoreConfig), para que a camada de
+     * análise (DiscoveryService) possa persistir o MESMO sinal que pontuou o
+     * produto, em vez de recalcular (e arriscar divergir) por conta própria.
+     * Sem número exato, não inventa nada: devolve null.
+     */
+    public function deriveSalesSignalFromExact(?float $salesExact): ?string
+    {
+        if ($salesExact === null) {
+            return null;
+        }
+        foreach ($this->cfg->block('vendas')['exact_to_signal'] as $rule) {
+            if ($salesExact >= $rule['min']) {
+                return (string) $rule['signal'];
+            }
+        }
+        return null;
     }
 
     private function scoreAvaliacao(NormalizedProduct $p, ScoreBreakdown $b): void

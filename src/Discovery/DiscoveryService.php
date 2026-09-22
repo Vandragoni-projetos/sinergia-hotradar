@@ -96,6 +96,18 @@ final class DiscoveryService
                 }
             }
 
+            // Alguns marketplaces (ex.: Shopee) só entregam o número exato de
+            // vendas, não um sinal pronto (muito_alto/alto/...) — o Hot Score já
+            // sabia derivar isso sozinho para pontuar, mas o valor derivado nunca
+            // era gravado no produto, então persistia NULL e a UI ("Procura")
+            // mostrava "Não informado" mesmo quando o score usou o dado corretamente.
+            // Deriva aqui, na análise, com a MESMA regra que pontua (evita duplicar
+            // lógica) — se já vier um sinal pronto (ex.: Mercado Livre) ou não houver
+            // número exato, não faz nada (nunca inventa/sobrescreve).
+            if ($np->salesSignal === null && $np->salesExact !== null) {
+                $np->salesSignal = $this->hotScore->deriveSalesSignalFromExact($np->salesExact);
+            }
+
             $breakdown = $this->hotScore->evaluate($np);
             $base['score_distribution'][$breakdown->faixaKey] =
                 ($base['score_distribution'][$breakdown->faixaKey] ?? 0) + 1;
